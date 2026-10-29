@@ -114,6 +114,17 @@ await page.getByText('ข้อ 5 จาก 11').waitFor({ timeout: 20000 });
 step('resumed at question 5 with the welcome-back line');
 await page.close();
 
+// ---- manage page shows progress ----
+const manage = await context.newPage();
+manage.on('pageerror', (e) => errors.push(e.message));
+await manage.goto(`${BASE}/m/${created.manageToken}`);
+await manage.getByText('ยายเล่าแล้ว 3 จาก 11 ข้อ').waitFor();
+assert.equal(await manage.getByText(/✓ ยายเล่าแล้ว/).count(), 3);
+await manage.getByText('ยายข้ามข้อนี้').waitFor();
+await shot(manage, '07-manage-progress');
+step('manage page shows 3/11 answered with per-question badges');
+await manage.close();
+
 // ---- life book ----
 const book = await context.newPage();
 book.on('pageerror', (e) => errors.push(e.message));
@@ -129,6 +140,30 @@ if (canAac) {
   const t = await book.evaluate(() => document.querySelector('article audio').currentTime);
   assert.ok(t > 0.3, `audio plays (currentTime=${t})`);
   step(`audio plays in book (t=${t.toFixed(2)}s)`);
+
+  // the time shown on the card must move while it plays, not just the hidden element.
+  // Clips here are short, so sample: some moment must show the pause button AND a time past 0:00.
+  const sawCardPlaying = async (ms) => {
+    for (let t = 0; t < ms; t += 150) {
+      const states = await book.$$eval('article', (cards) =>
+        cards.map((c) => ({ label: c.querySelector('button[aria-label]')?.getAttribute('aria-label'), time: c.querySelector('.justify-between span')?.textContent })),
+      );
+      if (states.some((st) => st.label === 'หยุด' && st.time !== '0:00')) return true;
+      await book.waitForTimeout(150);
+    }
+    return false;
+  };
+  await book.waitForTimeout(2500); // let the first clip finish
+  await book.getByRole('button', { name: 'เล่น', exact: true }).nth(1).click();
+  assert.ok(await sawCardPlaying(4000), 'card time display advances while playing');
+  step('card shows elapsed time while playing');
+
+  // "เล่นทั้งเล่ม" plays through the cards themselves, so their controls follow along
+  await book.waitForTimeout(2500);
+  await book.getByRole('button', { name: /เล่นทั้งเล่ม/ }).click();
+  assert.ok(await sawCardPlaying(10000), 'play-all moves the card time + shows pause');
+  await book.getByRole('button', { name: /หยุดเล่นทั้งเล่ม/ }).click();
+  step('"เล่นทั้งเล่ม" drives the card player (time + pause button visible)');
 }
 await shot(book, '06-book');
 

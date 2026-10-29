@@ -234,6 +234,7 @@ export function InterviewClient({ token }: { token: string }) {
       ...(repromptedRef.current.has(question.id) ? { noSpeechRepromptMs: Infinity } : {}),
     });
     const startedAt = Date.now();
+    let warned = false;
     const timer = setInterval(() => {
       const rms = engine.rms();
       setLevel(Math.min(1, rms / (det.threshold * 4)));
@@ -250,7 +251,13 @@ export function InterviewClient({ token }: { token: string }) {
           void finishAnswer();
         }
       }
-      if (Date.now() - startedAt > INTERVIEW_CONFIG.maxAnswerMs) void finishAnswer();
+      const elapsed = Date.now() - startedAt;
+      if (!warned && elapsed > INTERVIEW_CONFIG.maxAnswerMs - INTERVIEW_CONFIG.nearLimitBeforeMs) {
+        warned = true;
+        dispatch({ type: 'NEAR_LIMIT' });
+        void engine.ding(0.05, 520);
+      }
+      if (elapsed > INTERVIEW_CONFIG.maxAnswerMs) void finishAnswer();
     }, 100);
     return () => {
       clearInterval(timer);
@@ -380,9 +387,11 @@ export function InterviewClient({ token }: { token: string }) {
                   ? question.hasPromptAudio
                     ? `ฟัง${creator}ถามนะครับ…`
                     : 'ฟังคำถามนะครับ…'
-                  : state.nudged
-                    ? `เล่าต่อไหมครับ ถ้าจบแล้วแตะปุ่ม “เล่าจบแล้ว” ได้เลย`
-                    : 'กำลังฟังอยู่นะครับ…'}
+                  : state.nearLimit
+                    ? 'อีกสักครู่จะเก็บเรื่องนี้ไว้ก่อนนะครับ ถ้ายังเล่าไม่จบ เล่าต่อในข้อถัดไปได้เลย'
+                    : state.nudged
+                      ? `เล่าต่อไหมครับ ถ้าจบแล้วแตะปุ่ม “เล่าจบแล้ว” ได้เลย`
+                      : 'กำลังฟังอยู่นะครับ…'}
               </p>
             </div>
             {inLeadIn ? (

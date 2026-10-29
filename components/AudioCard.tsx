@@ -5,18 +5,40 @@ import { formatDuration } from '@/lib/format';
 import type { BookEntry } from '@/lib/repo';
 
 const SPEEDS = [1, 1.25, 0.75];
-const PLAY_EVENT = 'moradok:play';
+export const PLAY_EVENT = 'moradok:play';
 
 /** One story in the life book. Only one card plays at a time. */
-export const AudioCard = forwardRef<HTMLElement, { entry: BookEntry; token: string; highlight?: boolean; query?: string }>(function AudioCard(
-  { entry, token, highlight, query },
-  ref,
-) {
+export const AudioCard = forwardRef<
+  HTMLElement,
+  { entry: BookEntry; token: string; highlight?: boolean; query?: string; registerAudio?: (el: HTMLAudioElement | null) => void }
+>(function AudioCard({ entry, token, highlight, query, registerAudio }, ref) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState((entry.durationMs ?? 0) / 1000);
   const [speed, setSpeed] = useState(0);
+
+  useEffect(() => {
+    registerAudio?.(audioRef.current);
+    return () => registerAudio?.(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // follow the playhead every frame while playing — Safari fires timeupdate irregularly
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    const tick = () => {
+      const a = audioRef.current;
+      if (a) {
+        setTime(a.currentTime);
+        if (Number.isFinite(a.duration) && a.duration > 0) setDuration(a.duration);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
 
   useEffect(() => {
     const onOther = (e: Event) => {
@@ -93,10 +115,18 @@ export const AudioCard = forwardRef<HTMLElement, { entry: BookEntry; token: stri
         preload="none"
         src={`/api/audio/answer/${entry.answerId}?t=${token}`}
         onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
+        onPlaying={() => setPlaying(true)}
+        onPause={(e) => {
+          setPlaying(false);
+          setTime(e.currentTarget.currentTime);
+        }}
+        onEnded={(e) => {
+          setPlaying(false);
+          setTime(e.currentTarget.duration || 0);
+        }}
         onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
+        onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && e.currentTarget.duration > 0 && setDuration(e.currentTarget.duration)}
       />
 
       {showTranscript && (
