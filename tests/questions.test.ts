@@ -111,3 +111,18 @@ describe('normalizeQuestionList', () => {
     expect(out[0].chapter).toBe('life');
   });
 });
+
+import { formatDuration, formatMinutesThai } from '@/lib/format';
+
+describe('format', () => {
+  it('formatDuration', () => {
+    expect(formatDuration(0)).toBe('0:00');
+    expect(formatDuration(65_400)).toBe('1:05');
+    expect(formatDuration(null)).toBe('0:00');
+  });
+  it('formatMinutesThai', () => {
+    expect(formatMinutesThai(20_000)).toBe('ไม่ถึง 1 นาที');
+    expect(formatMinutesThai(12 * 60_000)).toBe('12 นาที');
+    expect(formatMinutesThai(75 * 60_000)).toBe('1 ชั่วโมง 15 นาที');
+  });
+});

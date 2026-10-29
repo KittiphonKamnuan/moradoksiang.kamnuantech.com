@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #fbf5ea;
+  --color-paper-d: #f3e8d4;
+  --color-ink: #3b2f25;
+  --color-ink-soft: #6b5a4a;
+  --color-amber: #d98e3a;
+  --color-amber-d: #b06f22;
+  --color-sage: #8a9a6b;
+  --color-sage-d: #5e6b45;
+  --color-rose: #c97b6b;
+  --color-line: #e6d9c3;
+
+  --font-sans: var(--font-sarabun), "Noto Sans Thai", system-ui, sans-serif;
+  --font-display: var(--font-mitr), "Noto Sans Thai", system-ui, sans-serif;
+}
+
+html {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+/* placeholder for artwork that is not there yet */
+.art-fallback {
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--color-amber) 35%, transparent), transparent 60%),
+    radial-gradient(circle at 80% 80%, color-mix(in srgb, var(--color-sage) 35%, transparent), transparent 55%),
+    linear-gradient(160deg, var(--color-paper-d), var(--color-line));
+}
+
+.paper-card {
+  background: #fffdf8;
+  border: 1px solid var(--color-line);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 0 rgba(59, 47, 37, 0.04), 0 8px 24px -12px rgba(59, 47, 37, 0.18);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-amber-d);
+  outline-offset: 3px;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+.animate-breathe { animation: breathe 3.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-breathe { animation: none; }
+}

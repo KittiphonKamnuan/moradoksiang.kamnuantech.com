@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "node e2e/interview.e2e.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
