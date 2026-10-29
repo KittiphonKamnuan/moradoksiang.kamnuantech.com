@@ -20,10 +20,16 @@ export default function Home() {
   return (
     <main>
       <section className="relative isolate overflow-hidden">
-        <Art src="/art/hero.webp" className="!absolute inset-0 -z-10" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-paper/30 via-paper/70 to-paper" />
-        <div className="mx-auto flex min-h-[78dvh] max-w-3xl flex-col items-start justify-end gap-6 px-5 pb-14 pt-24">
-          <p className="rounded-full bg-white/80 px-4 py-1 text-base text-ink-soft">มรดกเสียง</p>
+        {/* mobile: full-bleed behind the text; desktop: right two-thirds, fading into the paper on the left */}
+        <Art src="/art/hero.webp" className="!absolute inset-0 -z-10 lg:left-[30%]" imgClassName="object-[70%_30%] lg:object-[60%_18%]" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-paper/30 via-paper/70 to-paper lg:left-[30%] lg:bg-gradient-to-r lg:from-paper lg:via-paper/50 lg:to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 -z-10 hidden h-32 bg-gradient-to-b from-transparent to-paper lg:block" />
+        <div className="mx-auto flex min-h-[78dvh] max-w-3xl flex-col items-start justify-end gap-6 px-5 pb-14 pt-24 lg:max-w-6xl lg:justify-center lg:pr-[50%]">
+          <p className="flex items-center gap-2 rounded-full bg-paper/90 py-1 pl-1 pr-4 text-base text-ink-soft">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/art/logo-mark.png" alt="" className="h-8 w-8 rounded-full" />
+            มรดกเสียง
+          </p>
           <h1 className="font-display text-5xl leading-tight sm:text-6xl">เล่าให้หลานฟัง</h1>
           <p className="max-w-xl text-xl">
             ถ้าวันหนึ่งเราอยากได้ยินเสียงยายอีกครั้ง เรามีเสียงยายเก็บไว้กี่นาที?

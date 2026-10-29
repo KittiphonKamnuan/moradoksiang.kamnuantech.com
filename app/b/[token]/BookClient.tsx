@@ -68,7 +68,10 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
             // eslint-disable-next-line @next/next/no-img-element
             <img src={`/api/photo?t=${token}`} alt={storyteller.name} className="h-40 w-40 rounded-full border-4 border-white object-cover shadow-lg" />
           ) : (
-            <div className="art-fallback h-40 w-40 rounded-full border-4 border-white shadow-lg" />
+            <div className="grid bg-paper h-40 w-40 place-items-center rounded-full border-4 border-white shadow-lg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/art/logo-mark.png" alt="" className="w-3/5" />
+            </div>
           )}
           <p className="text-ink-soft">สมุดชีวิตของ</p>
           <h1 className="font-display text-4xl sm:text-5xl">{storyteller.name}</h1>
@@ -146,7 +149,11 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qr} alt="QR สมุดชีวิต" className="w-40 rounded-lg" />
           <CopyButton text={link} />
-          <p className="text-sm text-ink-soft">มรดกเสียง — เล่าให้หลานฟัง</p>
+          <p className="flex items-center gap-2 text-sm text-ink-soft">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/art/logo-mark.png" alt="" className="h-6 w-6" />
+            มรดกเสียง — เล่าให้หลานฟัง
+          </p>
         </footer>
       </div>
     </main>

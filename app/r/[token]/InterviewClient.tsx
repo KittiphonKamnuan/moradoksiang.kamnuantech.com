@@ -301,7 +301,10 @@ export function InterviewClient({ token }: { token: string }) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={`/api/photo?t=${token}`} alt="" className="h-44 w-44 rounded-full border-4 border-white object-cover shadow-lg" />
             ) : (
-              <div className="art-fallback h-44 w-44 rounded-full border-4 border-white shadow-lg" />
+              <div className="grid bg-paper h-44 w-44 place-items-center rounded-full border-4 border-white shadow-lg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/art/logo-mark.png" alt="" className="w-3/5" />
+            </div>
             )}
             <div className="space-y-3">
               <h1 className="font-display text-[34px] leading-tight">สวัสดีครับ{info.name}</h1>

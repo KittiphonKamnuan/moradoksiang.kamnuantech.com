@@ -10,8 +10,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(baseUrl()),
   title: { default: 'มรดกเสียง — เล่าให้หลานฟัง', template: '%s · มรดกเสียง' },
   description: 'เก็บเรื่องเล่าชีวิตด้วยเสียงจริงของคุณตาคุณยาย ผ่านการสัมภาษณ์ที่หลานเป็นคนถาม',
-  openGraph: { title: 'มรดกเสียง — เล่าให้หลานฟัง', images: ['/art/og.png'], locale: 'th_TH', type: 'website' },
-  icons: { icon: '/icon.svg' },
+  openGraph: { title: 'มรดกเสียง — เล่าให้หลานฟัง', images: [{ url: '/art/og.jpg', width: 1200, height: 630 }], locale: 'th_TH', type: 'website' },
 };
 
 export const viewport: Viewport = { themeColor: '#fbf5ea', width: 'device-width', initialScale: 1 };
