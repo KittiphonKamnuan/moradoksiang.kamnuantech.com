@@ -61,7 +61,7 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
   return (
     <main className="pb-16">
       <header className="relative isolate overflow-hidden">
-        <Art src="/art/book-cover.webp" className="!absolute inset-0 -z-10 opacity-60" />
+        <Art src="/art/book-cover.webp" className="!absolute inset-0 -z-10 opacity-60" imgClassName="object-[70%_50%]" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-paper/20 to-paper" />
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-5 px-5 pb-10 pt-16 text-center">
           {storyteller.hasPhoto ? (
