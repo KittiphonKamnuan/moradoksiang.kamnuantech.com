@@ -1,0 +1,10 @@
+# cp cloudflared/config.example.yml cloudflared/config.yml  (config.yml and *.json are gitignored)
+tunnel: moradoksiang
+credentials-file: /home/YOU/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: moradoksiang.kamnuantech.com
+    service: http://localhost:3000
+  - hostname: xn--12cm1bzchd5c2ere.kamnuantech.com # มรดกเสียง.kamnuantech.com
+    service: http://localhost:3000
+  - service: http_status:404
