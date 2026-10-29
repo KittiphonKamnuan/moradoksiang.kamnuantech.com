@@ -43,8 +43,9 @@ if [[ "$APPS" == *worker* ]]; then
 fi
 
 switch_to() {
+  # atomic symlink swap that works on both macOS and Linux (BSD mv has no -T)
   ln -sfn "$1" "$APP_DIR/current.next"
-  mv -Tf "$APP_DIR/current.next" "$APP_DIR/current"
+  node -e 'require("fs").renameSync(process.argv[1], process.argv[2])' "$APP_DIR/current.next" "$APP_DIR/current"
   pm2 startOrReload "$APP_DIR/current/ecosystem.config.js" --only "$APPS" --update-env
 }
 
