@@ -5,7 +5,7 @@ import { DATA_DIR } from './db';
 import { extensionForMime } from './mime';
 import { newId } from './tokens';
 
-export type AudioKind = 'answers' | 'prompts';
+export type AudioKind = 'answers' | 'prompts' | 'tts';
 
 export function createStorage(baseDir: string) {
   const root = path.resolve(baseDir);
@@ -16,11 +16,12 @@ export function createStorage(baseDir: string) {
     return abs;
   }
 
-  async function saveAudio(bytes: Buffer, kind: AudioKind, mime: string) {
+  /** `name` gives a deterministic file name (used for the TTS cache); default is random */
+  async function saveAudio(bytes: Buffer, kind: AudioKind, mime: string, name?: string) {
     const dir = path.join(root, kind);
     await fs.mkdir(dir, { recursive: true });
-    const id = newId();
-    const tmp = path.join(dir, `${id}.upload.${extensionForMime(mime)}`);
+    const id = name ?? newId();
+    const tmp = path.join(dir, `${id}.${newId()}.upload.${extensionForMime(mime)}`);
     const rel = `${kind}/${id}.m4a`;
     await fs.writeFile(tmp, bytes);
     try {
@@ -41,11 +42,20 @@ export function createStorage(baseDir: string) {
     return rel;
   }
 
+  async function exists(rel: string) {
+    try {
+      await fs.access(absolutePath(rel));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function removeFiles(rels: (string | null | undefined)[]) {
     await Promise.all(rels.filter((r): r is string => !!r).map((r) => fs.rm(absolutePath(r), { force: true })));
   }
 
-  return { root, absolutePath, saveAudio, saveFile, removeFiles };
+  return { root, absolutePath, saveAudio, saveFile, removeFiles, exists };
 }
 
 export type Storage = ReturnType<typeof createStorage>;

@@ -24,9 +24,25 @@ function silentWavUrl(): string {
   return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
 }
 
+/** Best Thai voice on this device: prefer natural/online voices (Edge "Premwadee Online", Google ไทย, Apple Kanya) */
 function thaiVoice(): SpeechSynthesisVoice | undefined {
   if (typeof speechSynthesis === 'undefined') return undefined;
-  return speechSynthesis.getVoices().find((v) => v.lang?.toLowerCase().replace('_', '-').startsWith('th'));
+  const thai = speechSynthesis.getVoices().filter((v) => v.lang?.toLowerCase().replace('_', '-').startsWith('th'));
+  const score = (v: SpeechSynthesisVoice) => (/natural|online|neural|enhanced|premium/i.test(v.name) ? 2 : 0) + (/google/i.test(v.name) ? 1 : 0);
+  return thai.sort((a, b) => score(b) - score(a))[0];
+}
+
+/** Chrome loads voices asynchronously — getVoices() is empty until "voiceschanged". */
+function voicesReady(timeoutMs = 1500): Promise<void> {
+  if (typeof speechSynthesis === 'undefined' || speechSynthesis.getVoices().length) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      speechSynthesis.removeEventListener('voiceschanged', done);
+      resolve();
+    };
+    speechSynthesis.addEventListener('voiceschanged', done);
+    setTimeout(done, timeoutMs);
+  });
 }
 
 /**
@@ -82,22 +98,30 @@ export class AudioEngine {
     return !!thaiVoice();
   }
 
-  playUrl(url: string): Promise<void> {
+  /** Resolves true when the clip played to the end, false if it could not be loaded/played. */
+  playUrl(url: string): Promise<boolean> {
     const audio = this.audio!;
     return new Promise((resolve) => {
-      const done = () => {
+      const done = (ok: boolean) => {
         audio.onended = audio.onerror = null;
-        resolve();
+        resolve(ok);
       };
-      audio.onended = done;
-      audio.onerror = done;
+      audio.onended = () => done(true);
+      audio.onerror = () => done(false);
       audio.src = url;
-      audio.play().catch(done);
+      audio.play().catch(() => done(false));
     });
   }
 
+  /** Natural server voice first (Google TTS, cached on our server), browser voice as fallback. */
+  async say(serverUrl: string | null, text: string): Promise<void> {
+    if (serverUrl && (await this.playUrl(serverUrl))) return;
+    await this.speak(text);
+  }
+
   /** Thai TTS fallback. Resolves when done; if no Thai voice exists, waits a reading-time pause instead. */
-  speak(text: string): Promise<void> {
+  async speak(text: string): Promise<void> {
+    await voicesReady();
     const voice = thaiVoice();
     const readingPause = () => new Promise<void>((r) => setTimeout(r, Math.min(2500 + text.length * 60, 8000)));
     if (!voice) return readingPause();

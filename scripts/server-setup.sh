@@ -28,6 +28,10 @@ NEXT_PUBLIC_BASE_URL=$BASE_URL
 # DATA_DIR is set by pm2 (shared/data) — do not set it here
 DEMO_BOOK_TOKEN=
 TRANSCRIBE=on
+# Google Cloud Text-to-Speech (natural Thai voice for questions)
+GOOGLE_TTS_API_KEY=
+GOOGLE_TTS_VOICE=th-TH-Neural2-C
+GOOGLE_TTS_RATE=0.9
 ENV
   echo "✓ created $SHARED/.env.local"
 fi

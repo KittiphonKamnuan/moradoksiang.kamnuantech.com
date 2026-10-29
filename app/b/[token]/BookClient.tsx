@@ -33,12 +33,10 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
     const player = playerRef.current!;
     cardRefs.current.get(entry.answerId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     window.dispatchEvent(new CustomEvent('moradok:play', { detail: '__book__' }));
-    if (stage === 'question' && !entry.hasPromptAudio) {
-      const t = setTimeout(() => setStage('answer'), 1200);
-      return () => clearTimeout(t);
-    }
-    player.src = stage === 'question' ? `/api/audio/prompt/${entry.questionId}?t=${token}` : `/api/audio/answer/${entry.answerId}?t=${token}`;
-    void player.play().catch(() => setCurrent(null));
+    const questionSrc = entry.hasPromptAudio ? `/api/audio/prompt/${entry.questionId}?t=${token}` : `/api/tts/${entry.questionId}?t=${token}`;
+    player.src = stage === 'question' ? questionSrc : `/api/audio/answer/${entry.answerId}?t=${token}`;
+    // a missing clip fires onError -> skip ahead; only stop if the browser blocks playback
+    void player.play().catch((e: DOMException) => e?.name === 'NotAllowedError' && setCurrent(null));
   }, [current, stage, all, token]);
 
   const onEnded = () => {

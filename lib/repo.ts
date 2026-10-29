@@ -275,6 +275,21 @@ export function resolveAudio(db: Db, kind: 'answer' | 'prompt', id: string, toke
   return row?.p ?? null;
 }
 
+/** A question plus its storyteller, if `token` is any of that storyteller's tokens. */
+export function getQuestionForToken(db: Db, questionId: string, token: string) {
+  return db
+    .select({ q: questions, s: storytellers })
+    .from(questions)
+    .innerJoin(storytellers, eq(storytellers.id, questions.storytellerId))
+    .where(
+      and(
+        eq(questions.id, questionId),
+        or(eq(storytellers.bookToken, token), eq(storytellers.manageToken, token), eq(storytellers.recordToken, token)),
+      ),
+    )
+    .get();
+}
+
 /** Same rule for the cover photo. */
 export function resolvePhoto(db: Db, token: string): string | null {
   const row = db

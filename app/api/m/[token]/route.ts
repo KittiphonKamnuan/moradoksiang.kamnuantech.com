@@ -1,8 +1,10 @@
 import { getDb } from '@/lib/db';
 import { handle, json, readJson } from '@/lib/http';
 import { manageView, requireManage } from '@/lib/manage';
-import { deleteStoryteller, updateStoryteller } from '@/lib/repo';
+import { renderQuestion } from '@/lib/questions';
+import { deleteStoryteller, listQuestions, updateStoryteller } from '@/lib/repo';
 import { storage } from '@/lib/storage';
+import { getTtsService } from '@/lib/tts';
 
 export const runtime = 'nodejs';
 type Ctx = { params: Promise<{ token: string }> };
@@ -22,6 +24,8 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
 
 export const DELETE = handle(async (_req: Request, ctx: Ctx) => {
   const s = requireManage((await ctx.params).token);
-  await storage.removeFiles(deleteStoryteller(getDb(), s.id));
+  const tts = getTtsService();
+  const voices = tts ? listQuestions(getDb(), s.id).map((q) => tts.pathFor(renderQuestion(q.text, s.callName))) : [];
+  await storage.removeFiles([...deleteStoryteller(getDb(), s.id), ...voices]);
   return json({ ok: true });
 });

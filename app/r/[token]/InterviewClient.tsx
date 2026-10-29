@@ -156,7 +156,7 @@ export function InterviewClient({ token }: { token: string }) {
       await wait(INTERVIEW_CONFIG.pauseBeforeQuestionMs);
       if (cancelled) return;
       if (question.hasPromptAudio) await engine.playUrl(`/api/audio/prompt/${question.id}?t=${token}`);
-      else await engine.speak(question.text);
+      else await engine.say(`/api/tts/${question.id}?t=${token}`, question.text);
       if (cancelled) return;
       await engine.ding();
       if (!cancelled) dispatch({ type: 'PROMPT_ENDED' });

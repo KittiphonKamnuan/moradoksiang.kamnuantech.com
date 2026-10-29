@@ -83,4 +83,20 @@ describe('GET /api/tts/[questionId]', () => {
     // 11 questions; the first one was already cached by earlier tests (same text)
     expect(googleCalls.length - before).toBeGreaterThanOrEqual(9);
   });
+
+  it('deleting the storyteller also removes its cached question voices (PDPA)', async () => {
+    const { s, q } = await setup();
+    const { getDb } = await import('@/lib/db');
+    const { updateStoryteller } = await import('@/lib/repo');
+    updateStoryteller(getDb(), s.id, { callName: 'คุณยายสมศรีลบได้' }); // unique text -> unique cache file
+    expect((await getTts(q.id, s.recordToken)).status).toBe(200);
+    const { getTtsService } = await import('@/lib/tts');
+    const { storage } = await import('@/lib/storage');
+    const rel = getTtsService()!.pathFor('พ่อกับแม่ของคุณยายสมศรีลบได้เป็นคนแบบไหนครับ');
+    expect(await storage.exists(rel)).toBe(true);
+
+    const { DELETE } = await import('@/app/api/m/[token]/route');
+    expect((await DELETE(new Request(url('/'), { method: 'DELETE' }), params({ token: s.manageToken }))).status).toBe(200);
+    expect(await storage.exists(rel)).toBe(false);
+  });
 });
