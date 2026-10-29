@@ -134,3 +134,22 @@ describe('interview lead-in (story between questions)', () => {
     expect(s.leadIn).toEqual(['outro']);
   });
 });
+
+describe('15-minute answer limit', () => {
+  const listening = () =>
+    run(interviewReducer(initialInterview, { type: 'LOAD', questions: qs(3), nextIndex: 0 }), { type: 'START' }, { type: 'MIC_READY' }, { type: 'PROMPT_ENDED' });
+
+  it('NEAR_LIMIT shows the gentle "almost time" hint while listening', () => {
+    expect(listening().nearLimit).toBe(false);
+    expect(run(listening(), { type: 'NEAR_LIMIT' }).nearLimit).toBe(true);
+  });
+
+  it('is ignored outside listening', () => {
+    const asking = run(listening(), { type: 'REPEAT' });
+    expect(run(asking, { type: 'NEAR_LIMIT' }).nearLimit).toBe(false);
+  });
+
+  it('the next question clears it', () => {
+    expect(run(listening(), { type: 'NEAR_LIMIT' }, { type: 'FINISH_ANSWER' }).nearLimit).toBe(false);
+  });
+});
