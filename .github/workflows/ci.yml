@@ -1,9 +1,10 @@
-name: CI
+name: CI / Deploy
 
 on:
   push:
     branches: [main, develop]
   pull_request:
+  workflow_dispatch: # manual redeploy from the Actions tab (main only)
 
 jobs:
   test:
@@ -23,3 +24,21 @@ jobs:
       - run: npm test
       - run: python -m unittest discover -s worker
       - run: npm run build
+
+  deploy:
+    # only after tests pass, only for main, never for pull requests
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, moradoksiang]
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: https://moradoksiang.kamnuantech.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        run: bash scripts/deploy.sh "$GITHUB_WORKSPACE"
+        env:
+          MORADOK_APP_DIR: ${{ vars.MORADOK_APP_DIR }}
