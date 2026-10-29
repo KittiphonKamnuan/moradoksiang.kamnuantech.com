@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { probeDurationMs, transcodeToM4a } from './audio';
+import { normalizeImage, probeDurationMs, transcodeToM4a } from './audio';
 import { DATA_DIR } from './db';
+import { MAX_PHOTO_PX } from './image';
 import { extensionForMime } from './mime';
 import { newId } from './tokens';
 
@@ -42,6 +43,25 @@ export function createStorage(baseDir: string) {
     return rel;
   }
 
+  /** Store a photo as a normalised JPEG (≤ MAX_PHOTO_PX, no metadata). Throws if it is not an image. */
+  async function saveImage(bytes: Buffer, kind: string) {
+    const dir = path.join(root, kind);
+    await fs.mkdir(dir, { recursive: true });
+    const id = newId();
+    const tmp = path.join(dir, `${id}.upload`);
+    const rel = `${kind}/${id}.jpg`;
+    await fs.writeFile(tmp, bytes);
+    try {
+      await normalizeImage(tmp, absolutePath(rel), MAX_PHOTO_PX);
+      return rel;
+    } catch (err) {
+      await fs.rm(absolutePath(rel), { force: true });
+      throw err;
+    } finally {
+      await fs.rm(tmp, { force: true });
+    }
+  }
+
   async function exists(rel: string) {
     try {
       await fs.access(absolutePath(rel));
@@ -55,7 +75,7 @@ export function createStorage(baseDir: string) {
     await Promise.all(rels.filter((r): r is string => !!r).map((r) => fs.rm(absolutePath(r), { force: true })));
   }
 
-  return { root, absolutePath, saveAudio, saveFile, removeFiles, exists };
+  return { root, absolutePath, saveAudio, saveFile, saveImage, removeFiles, exists };
 }
 
 export type Storage = ReturnType<typeof createStorage>;

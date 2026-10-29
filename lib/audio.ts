@@ -17,6 +17,12 @@ export async function transcodeToM4a(input: string, output: string): Promise<voi
   ]);
 }
 
+/** Re-encode any image to a JPEG whose long side is ≤ maxPx, dropping all metadata (EXIF/GPS). */
+export async function normalizeImage(input: string, output: string, maxPx: number): Promise<void> {
+  const fit = `'if(gte(iw,ih),min(${maxPx},iw),-1)':'if(gte(iw,ih),-1,min(${maxPx},ih))'`;
+  await run(FFMPEG, ['-v', 'error', '-y', '-i', input, '-frames:v', '1', '-vf', `scale=${fit}`, '-map_metadata', '-1', '-q:v', '3', output]);
+}
+
 export async function probeDurationMs(file: string): Promise<number | null> {
   try {
     const { stdout } = await run(FFPROBE, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]);

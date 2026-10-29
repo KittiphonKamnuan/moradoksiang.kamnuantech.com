@@ -7,7 +7,7 @@ export interface SessionQuestion {
   text: string;
   hasPromptAudio: boolean;
   isClosing: boolean;
-  answerStatus: 'saved' | 'skipped' | null;
+  answerStatus: 'saved' | 'skipped' | 'failed' | null;
 }
 
 export type InterviewPhase =
@@ -30,6 +30,8 @@ export interface InterviewState {
   resumed: boolean;
   /** story lines to speak before the current question (or the outro when finished) */
   leadIn: LineKey[];
+  /** the answer is close to the 15-minute cap */
+  nearLimit: boolean;
   lastOutcome: 'answered' | 'skipped' | null;
   error?: string;
 }
@@ -45,6 +47,7 @@ export type InterviewAction =
   | { type: 'RESUME' }
   | { type: 'FINISH_ANSWER' }
   | { type: 'SKIP' }
+  | { type: 'NEAR_LIMIT' }
   | { type: 'ERROR'; message: string };
 
 export const initialInterview: InterviewState = {
@@ -55,12 +58,13 @@ export const initialInterview: InterviewState = {
   nudged: false,
   resumed: false,
   leadIn: [],
+  nearLimit: false,
   lastOutcome: null,
 };
 
 function ask(s: InterviewState, index: number, opts: { repeat?: boolean; outcome?: 'answered' | 'skipped' } = {}): InterviewState {
   const lastOutcome = opts.outcome ?? s.lastOutcome;
-  if (index >= s.questions.length) return { ...s, index, lastOutcome, phase: 'finished', nudged: false, leadIn: ['outro'] };
+  if (index >= s.questions.length) return { ...s, index, lastOutcome, phase: 'finished', nudged: false, nearLimit: false, leadIn: ['outro'] };
   const leadIn = leadInFor({
     questions: s.questions,
     index,
@@ -69,7 +73,7 @@ function ask(s: InterviewState, index: number, opts: { repeat?: boolean; outcome
     repeat: !!opts.repeat,
     lastOutcome,
   });
-  return { ...s, index, lastOutcome, leadIn, phase: 'asking', askCount: s.askCount + 1, nudged: false };
+  return { ...s, index, lastOutcome, leadIn, phase: 'asking', askCount: s.askCount + 1, nudged: false, nearLimit: false };
 }
 
 export function interviewReducer(s: InterviewState, a: InterviewAction): InterviewState {
@@ -100,6 +104,8 @@ export function interviewReducer(s: InterviewState, a: InterviewAction): Intervi
       return s.phase === 'listening' ? ask(s, s.index + 1, { outcome: 'answered' }) : s;
     case 'SKIP':
       return s.phase === 'asking' || s.phase === 'listening' ? ask(s, s.index + 1, { outcome: 'skipped' }) : s;
+    case 'NEAR_LIMIT':
+      return s.phase === 'listening' ? { ...s, nearLimit: true } : s;
     case 'ERROR':
       return { ...s, phase: 'error', error: a.message };
   }

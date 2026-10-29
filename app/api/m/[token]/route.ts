@@ -1,10 +1,8 @@
 import { getDb } from '@/lib/db';
 import { handle, json, readJson } from '@/lib/http';
-import { manageView, requireManage } from '@/lib/manage';
-import { renderQuestion } from '@/lib/questions';
-import { deleteStoryteller, listQuestions, updateStoryteller } from '@/lib/repo';
+import { cachedVoicesFor, manageView, requireManage } from '@/lib/manage';
+import { deleteStoryteller, updateStoryteller } from '@/lib/repo';
 import { storage } from '@/lib/storage';
-import { getTtsService } from '@/lib/tts';
 
 export const runtime = 'nodejs';
 type Ctx = { params: Promise<{ token: string }> };
@@ -18,14 +16,17 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim().slice(0, 100);
   if (typeof body.callName === 'string' && body.callName.trim()) patch.callName = body.callName.trim().slice(0, 30);
   if (typeof body.creatorName === 'string') patch.creatorName = body.creatorName.trim().slice(0, 100) || null;
+  const before = cachedVoicesFor(s);
   updateStoryteller(getDb(), s.id, patch);
+  // voices that still say the old names are personal data we no longer need
+  const after = new Set(cachedVoicesFor({ ...s, ...patch }));
+  await storage.removeFiles(before.filter((p) => !after.has(p)));
   return json({ ok: true });
 });
 
 export const DELETE = handle(async (_req: Request, ctx: Ctx) => {
   const s = requireManage((await ctx.params).token);
-  const tts = getTtsService();
-  const voices = tts ? listQuestions(getDb(), s.id).map((q) => tts.pathFor(renderQuestion(q.text, s.callName))) : [];
+  const voices = cachedVoicesFor(s);
   await storage.removeFiles([...deleteStoryteller(getDb(), s.id), ...voices]);
   return json({ ok: true });
 });
