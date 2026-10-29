@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+data/
+.env*.local
+.env
+cloudflared/*.json
+cloudflared/config.yml
+*.log
+.DS_Store
+next-env.d.ts
+tsconfig.tsbuildinfo
+__pycache__/
+.venv/
