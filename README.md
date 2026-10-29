@@ -124,25 +124,14 @@ npm run seed:demo -- ./demo-audio    # โฟลเดอร์เสียง�
 # แล้วใส่ DEMO_BOOK_TOKEN ที่ได้ลง .env.local เพื่อโชว์ปุ่ม "ฟังสมุดชีวิตตัวอย่าง" หน้าแรก
 ```
 
-## Deploy บนเซิร์ฟเวอร์ที่บ้าน
+## Deploy บนเซิร์ฟเวอร์ที่บ้าน + Auto deploy
 
-```bash
-npm ci && npm run build
-npm i -g pm2
+ดูขั้นตอนเต็มใน **[docs/DEPLOY.md](docs/DEPLOY.md)** (macOS, Cloudflare Tunnel, pm2, GitHub self-hosted runner)
 
-# Cloudflare Tunnel (โดเมนต้องใช้ DNS ของ Cloudflare)
-cloudflared tunnel login
-cloudflared tunnel create moradoksiang
-cloudflared tunnel route dns moradoksiang moradoksiang.kamnuantech.com
-cloudflared tunnel route dns moradoksiang xn--12cm1bzchd5c2ere.kamnuantech.com   # มรดกเสียง (ไม่บังคับ)
-cp cloudflared/config.example.yml cloudflared/config.yml                       # ใส่ path credentials
-
-pm2 start ecosystem.config.js     # web + worker + tunnel
-pm2 save && pm2 startup           # รันเองหลังรีบูต
-```
-
-- Cloudflare แบบฟรีรับ body ได้ ~100MB/request — คำตอบละ 15 นาทีของ iPhone ≈ 15MB เหลือเฟือ (server จำกัด 30MB)
-- ปิด sleep ของเครื่อง เสียบปลั๊กไว้
+- push เข้า `main` → เทสต์บน GitHub Actions → ผ่านแล้ว deploy อัตโนมัติบนเครื่องที่บ้าน
+- `scripts/deploy.sh`: build รีลีสใหม่ข้างตัวที่รันอยู่ → สลับ symlink แบบ atomic → `pm2 reload` → เช็ก `/api/health` → พังแล้ว rollback เอง
+- ข้อมูล (`shared/data`) แยกจากโค้ด deploy กี่ครั้งก็ไม่หาย
+- Cloudflare แบบฟรีรับ body ได้ ~100MB/request — คำตอบละ 15 นาทีของ iPhone ≈ 15MB (server จำกัด 30MB)
 
 ## การพัฒนาแบบ TDD
 
