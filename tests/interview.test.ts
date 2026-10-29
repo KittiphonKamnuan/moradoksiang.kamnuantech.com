@@ -97,3 +97,40 @@ describe('interviewReducer', () => {
     expect(run(s, { type: 'START' }).phase).toBe('micCheck');
   });
 });
+
+describe('interview lead-in (story between questions)', () => {
+  const chapters = (cs: string[]): SessionQuestion[] =>
+    cs.map((chapter, i) => ({ id: `q${i}`, chapter: chapter as never, text: `ข้อ ${i}`, hasPromptAudio: false, isClosing: false, answerStatus: null }));
+  const start = (cs: string[], nextIndex = 0) =>
+    run(interviewReducer(initialInterview, { type: 'LOAD', questions: chapters(cs), nextIndex }), { type: 'START' }, { type: 'MIC_READY' });
+
+  it('first ask carries the intro', () => {
+    expect(start(['roots', 'love']).leadIn).toEqual(['intro', 'chapter-roots']);
+  });
+
+  it('resumed session carries welcome-back', () => {
+    expect(start(['roots', 'love'], 1).leadIn[0]).toBe('welcome-back');
+  });
+
+  it('after an answer into a new chapter: thanks + chapter opener', () => {
+    const s = run(start(['roots', 'love']), { type: 'PROMPT_ENDED' }, { type: 'FINISH_ANSWER' });
+    expect(s.leadIn[1]).toBe('chapter-love');
+    expect(s.leadIn[0]).toMatch(/^ack-/);
+  });
+
+  it('after a skip: ack-skip', () => {
+    const s = run(start(['roots', 'roots']), { type: 'SKIP' });
+    expect(s.leadIn).toEqual(['ack-skip']);
+  });
+
+  it('REPEAT clears the lead-in', () => {
+    const s = run(start(['roots']), { type: 'PROMPT_ENDED' }, { type: 'REPEAT' });
+    expect(s.leadIn).toEqual([]);
+  });
+
+  it('finishing the last question queues the outro', () => {
+    const s = run(start(['roots']), { type: 'PROMPT_ENDED' }, { type: 'FINISH_ANSWER' });
+    expect(s.phase).toBe('finished');
+    expect(s.leadIn).toEqual(['outro']);
+  });
+});

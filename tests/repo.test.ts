@@ -257,3 +257,23 @@ describe('deleteStoryteller (PDPA right to erasure)', () => {
     expect(listQuestions(db, s.id)).toEqual([]);
   });
 });
+
+describe('migrations', () => {
+  it('adds intro_audio to a database created before the column existed', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const Database = (await import('better-sqlite3')).default;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moradok-mig-'));
+    const file = path.join(dir, 'old.db');
+    const old = new Database(file);
+    old.exec(`CREATE TABLE storytellers (id TEXT PRIMARY KEY, name TEXT NOT NULL, call_name TEXT NOT NULL, creator_name TEXT,
+      photo_path TEXT, manage_token TEXT UNIQUE NOT NULL, record_token TEXT UNIQUE NOT NULL, book_token TEXT UNIQUE NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`);
+    old.close();
+    const migrated = createDb(file);
+    const s = createStoryteller(migrated, { name: 'ก', callName: 'ข' });
+    expect(getByManageToken(migrated, s.manageToken)?.introAudio).toBeNull();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});

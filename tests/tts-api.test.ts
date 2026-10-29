@@ -99,4 +99,23 @@ describe('GET /api/tts/[questionId]', () => {
     expect((await DELETE(new Request(url('/'), { method: 'DELETE' }), params({ token: s.manageToken }))).status).toBe(200);
     expect(await storage.exists(rel)).toBe(false);
   });
+
+  it('speaks script lines by key with the storyteller names filled in', async () => {
+    const { s } = await setup();
+    const { GET } = await import('@/app/api/tts/line/[key]/route');
+    const res = await GET(new Request(url(`/api/tts/line/intro?t=${s.recordToken}`)), params({ key: 'intro' }));
+    expect(res.status).toBe(200);
+    expect(googleCalls.at(-1)).toContain('ยาย');
+  });
+
+  it('unknown line keys are 404 (no arbitrary text reaches the TTS API)', async () => {
+    const { s } = await setup();
+    const { GET } = await import('@/app/api/tts/line/[key]/route');
+    const before = googleCalls.length;
+    const res = await GET(new Request(url('/')), params({ key: 'hello-world' }));
+    expect(res.status).toBe(404);
+    const res2 = await GET(new Request(url(`/?t=${s.recordToken}`)), params({ key: 'hello-world' }));
+    expect(res2.status).toBe(404);
+    expect(googleCalls.length).toBe(before);
+  });
 });
