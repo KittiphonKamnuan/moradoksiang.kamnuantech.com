@@ -1,4 +1,5 @@
 import type { ChapterId } from './questions';
+import { leadInFor, type LineKey } from './script';
 
 export interface SessionQuestion {
   id: string;
@@ -27,6 +28,9 @@ export interface InterviewState {
   askCount: number;
   nudged: boolean;
   resumed: boolean;
+  /** story lines to speak before the current question (or the outro when finished) */
+  leadIn: LineKey[];
+  lastOutcome: 'answered' | 'skipped' | null;
   error?: string;
 }
 
@@ -50,12 +54,23 @@ export const initialInterview: InterviewState = {
   askCount: 0,
   nudged: false,
   resumed: false,
+  leadIn: [],
+  lastOutcome: null,
 };
 
-const ask = (s: InterviewState, index: number): InterviewState =>
-  index >= s.questions.length
-    ? { ...s, index, phase: 'finished', nudged: false }
-    : { ...s, index, phase: 'asking', askCount: s.askCount + 1, nudged: false };
+function ask(s: InterviewState, index: number, opts: { repeat?: boolean; outcome?: 'answered' | 'skipped' } = {}): InterviewState {
+  const lastOutcome = opts.outcome ?? s.lastOutcome;
+  if (index >= s.questions.length) return { ...s, index, lastOutcome, phase: 'finished', nudged: false, leadIn: ['outro'] };
+  const leadIn = leadInFor({
+    questions: s.questions,
+    index,
+    firstAsk: s.askCount === 0,
+    resumed: s.resumed,
+    repeat: !!opts.repeat,
+    lastOutcome,
+  });
+  return { ...s, index, lastOutcome, leadIn, phase: 'asking', askCount: s.askCount + 1, nudged: false };
+}
 
 export function interviewReducer(s: InterviewState, a: InterviewAction): InterviewState {
   switch (a.type) {
@@ -76,15 +91,15 @@ export function interviewReducer(s: InterviewState, a: InterviewAction): Intervi
     case 'PROMPT_ENDED':
       return s.phase === 'asking' ? { ...s, phase: 'listening', nudged: false } : s;
     case 'REPEAT':
-      return s.phase === 'asking' || s.phase === 'listening' ? ask(s, s.index) : s;
+      return s.phase === 'asking' || s.phase === 'listening' ? ask(s, s.index, { repeat: true }) : s;
     case 'NUDGE':
       return s.phase === 'listening' ? { ...s, nudged: true } : s;
     case 'RESUME':
       return { ...s, nudged: false };
     case 'FINISH_ANSWER':
-      return s.phase === 'listening' ? ask(s, s.index + 1) : s;
+      return s.phase === 'listening' ? ask(s, s.index + 1, { outcome: 'answered' }) : s;
     case 'SKIP':
-      return s.phase === 'asking' || s.phase === 'listening' ? ask(s, s.index + 1) : s;
+      return s.phase === 'asking' || s.phase === 'listening' ? ask(s, s.index + 1, { outcome: 'skipped' }) : s;
     case 'ERROR':
       return { ...s, phase: 'error', error: a.message };
   }

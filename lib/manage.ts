@@ -11,7 +11,14 @@ export function requireManage(token: string) {
 export function manageView(token: string, req?: Request) {
   const s = requireManage(token);
   return {
-    storyteller: { name: s.name, callName: s.callName, creatorName: s.creatorName, hasPhoto: !!s.photoPath, status: s.status },
+    storyteller: {
+      name: s.name,
+      callName: s.callName,
+      creatorName: s.creatorName,
+      hasPhoto: !!s.photoPath,
+      hasIntroAudio: !!s.introAudio,
+      status: s.status,
+    },
     questions: listQuestions(getDb(), s.id).map((q) => ({
       id: q.id,
       chapter: q.chapter,

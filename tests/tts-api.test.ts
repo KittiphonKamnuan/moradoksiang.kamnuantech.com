@@ -80,9 +80,10 @@ describe('GET /api/tts/[questionId]', () => {
     await GET(new Request(url(`/api/r/${s.recordToken}`)), params({ token: s.recordToken }));
     const { getTtsService } = await import('@/lib/tts');
     await getTtsService()?.idle();
-    // 11 questions; the first one was already cached by earlier tests (same text)
+    // 11 questions + story lines; the first question was already cached by earlier tests (same text)
     expect(googleCalls.length - before).toBeGreaterThanOrEqual(9);
-  });
+    expect(googleCalls[before]).toContain('ไม่มีถูกไม่มีผิด'); // intro first
+  }, 30000);
 
   it('deleting the storyteller also removes its cached question voices (PDPA)', async () => {
     const { s, q } = await setup();

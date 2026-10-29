@@ -7,6 +7,8 @@ export const storytellers = sqliteTable('storytellers', {
   callName: text('call_name').notNull(),
   creatorName: text('creator_name'),
   photoPath: text('photo_path'),
+  /** grandchild's own recorded opening message */
+  introAudio: text('intro_audio'),
   manageToken: text('manage_token').notNull().unique(),
   recordToken: text('record_token').notNull().unique(),
   bookToken: text('book_token').notNull().unique(),
@@ -57,6 +59,7 @@ CREATE TABLE IF NOT EXISTS storytellers (
   call_name TEXT NOT NULL,
   creator_name TEXT,
   photo_path TEXT,
+  intro_audio TEXT,
   manage_token TEXT UNIQUE NOT NULL,
   record_token TEXT UNIQUE NOT NULL,
   book_token TEXT UNIQUE NOT NULL,
@@ -89,3 +92,6 @@ CREATE TABLE IF NOT EXISTS answers (
 );
 CREATE INDEX IF NOT EXISTS answers_transcript ON answers(transcript_status);
 `;
+
+/** Columns added after the first release: [table, column, DDL] — applied if missing. */
+export const MIGRATIONS: [string, string, string][] = [['storytellers', 'intro_audio', 'ALTER TABLE storytellers ADD COLUMN intro_audio TEXT']];

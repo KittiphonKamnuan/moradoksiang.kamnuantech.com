@@ -13,6 +13,10 @@ export function createDb(file: string): Db {
   sqlite.pragma('foreign_keys = ON');
   sqlite.pragma('busy_timeout = 5000');
   sqlite.exec(schema.BOOTSTRAP_SQL);
+  for (const [table, column, ddl] of schema.MIGRATIONS) {
+    const cols = sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === column)) sqlite.exec(ddl);
+  }
   return drizzle(sqlite, { schema });
 }
 

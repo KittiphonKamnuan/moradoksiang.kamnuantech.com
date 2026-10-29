@@ -34,6 +34,7 @@ export function createStoryteller(db: Db, input: CreateStorytellerInput) {
     callName,
     creatorName: input.creatorName?.trim() || null,
     photoPath: input.photoPath ?? null,
+    introAudio: null,
     manageToken: newToken(),
     recordToken: newToken(),
     bookToken: newToken(),
@@ -194,7 +195,15 @@ export function getSession(db: Db, recordToken: string) {
   const firstOpen = list.findIndex((q) => q.answerStatus === null);
   const nextIndex = firstOpen === -1 ? list.length : firstOpen;
   return {
-    storyteller: { id: s.id, name: s.name, callName: s.callName, creatorName: s.creatorName, hasPhoto: !!s.photoPath, status: s.status },
+    storyteller: {
+      id: s.id,
+      name: s.name,
+      callName: s.callName,
+      creatorName: s.creatorName,
+      hasPhoto: !!s.photoPath,
+      hasIntroAudio: !!s.introAudio,
+      status: s.status,
+    },
     questions: list,
     nextIndex,
     done: nextIndex >= list.length,
@@ -250,8 +259,28 @@ export function getBook(db: Db, bookToken: string) {
   };
 }
 
-/** Which tokens may stream which audio: answers -> book/manage; prompts -> record/book/manage. */
-export function resolveAudio(db: Db, kind: 'answer' | 'prompt', id: string, token: string): string | null {
+/** Returns the previous intro path (to delete) */
+export function setIntroAudio(db: Db, storytellerId: string, audioPath: string | null): string | null {
+  const prev = db.select({ p: storytellers.introAudio }).from(storytellers).where(eq(storytellers.id, storytellerId)).get();
+  db.update(storytellers).set({ introAudio: audioPath, updatedAt: Date.now() }).where(eq(storytellers.id, storytellerId)).run();
+  return prev?.p ?? null;
+}
+
+/** Which tokens may stream which audio: answers -> book/manage; prompts + intro -> record/book/manage. */
+export function resolveAudio(db: Db, kind: 'answer' | 'prompt' | 'intro', id: string, token: string): string | null {
+  if (kind === 'intro') {
+    const row = db
+      .select({ p: storytellers.introAudio })
+      .from(storytellers)
+      .where(
+        and(
+          eq(storytellers.id, id),
+          or(eq(storytellers.bookToken, token), eq(storytellers.manageToken, token), eq(storytellers.recordToken, token)),
+        ),
+      )
+      .get();
+    return row?.p ?? null;
+  }
   if (kind === 'answer') {
     const row = db
       .select({ p: answers.audioPath })
@@ -306,6 +335,7 @@ export function deleteStoryteller(db: Db, id: string): string[] {
   if (!s) return [];
   const files: string[] = [];
   if (s.photoPath) files.push(s.photoPath);
+  if (s.introAudio) files.push(s.introAudio);
   for (const q of listQuestions(db, id)) if (q.promptAudio) files.push(q.promptAudio);
   for (const a of db.select({ p: answers.audioPath }).from(answers).where(eq(answers.storytellerId, id)).all()) {
     if (a.p) files.push(a.p);
