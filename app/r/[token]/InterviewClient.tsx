@@ -9,11 +9,14 @@ import { createIdbStore } from '@/lib/client/idbStore';
 import { INTERVIEW_CONFIG } from '@/lib/config';
 import { initialInterview, interviewReducer, type SessionQuestion } from '@/lib/interview';
 import { extensionForMime } from '@/lib/mime';
-import { CHAPTERS } from '@/lib/questions';
+import { CHAPTERS, type ChapterId } from '@/lib/questions';
+import { lineText, type LineKey } from '@/lib/script';
 import { SilenceDetector, estimateNoiseFloor } from '@/lib/silence';
 import { classifyStatus, createUploadQueue, type UploadItem, type UploadQueue } from '@/lib/uploadQueue';
 
 interface StorytellerInfo {
+  id: string;
+  hasIntroAudio: boolean;
   name: string;
   callName: string;
   creatorName: string | null;
@@ -44,6 +47,8 @@ export function InterviewClient({ token }: { token: string }) {
   const [micOpen, setMicOpen] = useState(false);
   const [heard, setHeard] = useState(false);
   const [completed, setCompleted] = useState(false);
+  /** the story line currently being spoken (shown instead of the question) */
+  const [caption, setCaption] = useState<{ key: LineKey; text: string } | null>(null);
 
   const engineRef = useRef<AudioEngine | null>(null);
   const queueRef = useRef<UploadQueue | null>(null);
@@ -154,7 +159,13 @@ export function InterviewClient({ token }: { token: string }) {
     engine.cancelRecording();
     (async () => {
       await wait(INTERVIEW_CONFIG.pauseBeforeQuestionMs);
+      for (const key of state.leadIn) {
+        if (cancelled || !info) return;
+        await speakLine(engine, key, info);
+        await wait(INTERVIEW_CONFIG.pauseBetweenLinesMs);
+      }
       if (cancelled) return;
+      setCaption(null);
       if (question.hasPromptAudio) await engine.playUrl(`/api/audio/prompt/${question.id}?t=${token}`);
       else await engine.say(`/api/tts/${question.id}?t=${token}`, question.text);
       if (cancelled) return;
@@ -164,9 +175,18 @@ export function InterviewClient({ token }: { token: string }) {
     return () => {
       cancelled = true;
       engine.stopPlayback();
+      setCaption(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.askCount]);
+
+  /** grandchild's recorded intro if there is one, else the natural TTS voice, else the browser voice */
+  async function speakLine(engine: AudioEngine, key: LineKey, who: StorytellerInfo) {
+    const text = lineText(key, who) ?? '';
+    setCaption({ key, text });
+    if (key === 'intro' && who.hasIntroAudio && (await engine.playUrl(`/api/audio/intro/${who.id}?t=${token}`))) return;
+    await engine.say(`/api/tts/line/${key}?t=${token}`, text);
+  }
 
   const enqueue = useCallback(
     async (item: Omit<UploadItem, 'id' | 'recordToken' | 'createdAt'>) => {
@@ -242,14 +262,32 @@ export function InterviewClient({ token }: { token: string }) {
   // ---- finished: release the mic, then mark complete once everything is uploaded ----
   useEffect(() => {
     if (state.phase !== 'finished' || !startedRef.current) return;
-    engineRef.current?.close();
+    const engine = engineRef.current;
+    if (!engine) return;
     engineRef.current = null;
-    releaseWakeRef.current();
+    engine.cancelRecording();
+    void (async () => {
+      if (info && state.leadIn.includes('outro')) {
+        await wait(INTERVIEW_CONFIG.pauseBeforeQuestionMs);
+        await speakLine(engine, 'outro', info);
+        setCaption(null);
+      }
+      engine.close();
+      releaseWakeRef.current();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
+
+  useEffect(() => {
+    if (state.phase !== 'finished' || !startedRef.current) return;
     if (pending === 0 && !completed) {
       setCompleted(true);
       void fetch(`/api/r/${token}/complete`, { method: 'POST' });
     }
   }, [state.phase, pending, completed, token]);
+
+  const captionChapter = caption?.key.startsWith('chapter-') ? (caption.key.slice('chapter-'.length) as ChapterId) : null;
+  const inLeadIn = state.phase === 'asking' && !!caption;
 
   return (
     <main className="relative flex min-h-dvh flex-col">
@@ -324,8 +362,15 @@ export function InterviewClient({ token }: { token: string }) {
                 ข้อ {state.index + 1} จาก {state.questions.length}
               </span>
             </header>
-            <h1 className="font-display text-[34px] leading-snug sm:text-[40px]">{question.text}</h1>
-            <div className="flex flex-1 flex-col items-center justify-center gap-4">
+            {inLeadIn ? (
+              <div className="space-y-4" aria-live="polite">
+                {captionChapter && <Art src={CHAPTERS[captionChapter]?.art ?? ''} className="aspect-[16/9] w-full rounded-3xl" />}
+                <p className="font-display text-[28px] leading-snug text-ink-soft sm:text-[32px]">{caption!.text}</p>
+              </div>
+            ) : (
+              <h1 className="font-display text-[34px] leading-snug sm:text-[40px]">{question.text}</h1>
+            )}
+            <div className={`flex flex-1 flex-col items-center justify-center gap-4 ${inLeadIn ? 'hidden' : ''}`}>
               <VoiceOrb level={level} active={state.phase === 'listening'} />
               <p className="min-h-[2.5em] text-center" aria-live="polite">
                 {state.phase === 'asking'
@@ -337,19 +382,27 @@ export function InterviewClient({ token }: { token: string }) {
                     : 'กำลังฟังอยู่นะครับ…'}
               </p>
             </div>
-            <div className="space-y-3">
-              <BigButton onClick={() => void finishAnswer()} disabled={state.phase !== 'listening'}>
-                เล่าจบแล้ว
-              </BigButton>
-              <div className="grid grid-cols-2 gap-3">
-                <BigButton variant="secondary" className="text-xl" onClick={repeat}>
-                  ถามอีกที
-                </BigButton>
-                <BigButton variant="secondary" className="text-xl" onClick={() => void skip()}>
-                  ข้ามข้อนี้
-                </BigButton>
+            {inLeadIn ? (
+              <div className="mt-auto text-center">
+                <button type="button" onClick={repeat} className="px-4 py-3 text-lg text-ink-soft underline underline-offset-4">
+                  ข้ามไปที่คำถามเลย
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <BigButton onClick={() => void finishAnswer()} disabled={state.phase !== 'listening'}>
+                  เล่าจบแล้ว
+                </BigButton>
+                <div className="grid grid-cols-2 gap-3">
+                  <BigButton variant="secondary" className="text-xl" onClick={repeat}>
+                    ถามอีกที
+                  </BigButton>
+                  <BigButton variant="secondary" className="text-xl" onClick={() => void skip()}>
+                    ข้ามข้อนี้
+                  </BigButton>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -357,6 +410,7 @@ export function InterviewClient({ token }: { token: string }) {
           <section className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
             <Art src="/art/thanks.webp" className="aspect-square w-64 rounded-[2rem] shadow-lg" />
             <h1 className="font-display text-[34px]">ขอบคุณที่เล่าให้ฟังนะครับ</h1>
+            {caption?.key === 'outro' && <p className="text-xl text-ink-soft">{caption.text}</p>}
             <p className="text-[24px]">
               {creator}จะได้ฟังเรื่องของ{call}แล้วครับ
             </p>

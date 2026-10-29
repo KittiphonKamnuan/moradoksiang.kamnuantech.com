@@ -69,10 +69,20 @@ await page.getByRole('button', { name: 'เริ่มคุยกัน' }).cl
 await page.getByText('ได้ยินเสียงแล้วครับ').waitFor({ timeout: 10000 });
 step('mic check heard the voice and auto-advanced');
 
+// the story comes first: intro caption before question 1
+await page.getByText('ไม่มีถูกไม่มีผิด').waitFor({ timeout: 15000 });
+await shot(page, '05a-intro');
+step('intro story shown before the first question');
+
 for (let i = 1; i <= 3; i++) {
   const finish = page.getByRole('button', { name: 'เล่าจบแล้ว' });
-  await page.getByText(`ข้อ ${i} จาก 11`).waitFor({ timeout: 20000 });
-  await finish.and(page.locator(':not([disabled])')).waitFor({ timeout: 20000 }); // listening
+  await page.getByText(`ข้อ ${i} จาก 11`).waitFor({ timeout: 40000 });
+  if (i === 2) {
+    // story line between questions can be skipped straight to the question
+    await page.getByRole('button', { name: 'ข้ามไปที่คำถามเลย' }).click({ timeout: 15000 });
+    step('skipped the story line before question 2');
+  }
+  await finish.and(page.locator(':not([disabled])')).waitFor({ timeout: 40000 }); // listening
   await page.waitForTimeout(1500); // "speak" for a bit
   if (i === 1) await shot(page, '05-listening');
   await finish.click();
@@ -99,8 +109,9 @@ await page.reload();
 await page.getByText('มาเล่าต่อจากคราวก่อนกันนะครับ').waitFor();
 step('resume message after reload');
 await page.getByRole('button', { name: 'เริ่มคุยกัน' }).click();
+await page.getByText('ยินดีที่ได้คุยกันอีกครั้ง', { exact: false }).waitFor({ timeout: 20000 });
 await page.getByText('ข้อ 5 จาก 11').waitFor({ timeout: 20000 });
-step('resumed at question 5');
+step('resumed at question 5 with the welcome-back line');
 await page.close();
 
 // ---- life book ----

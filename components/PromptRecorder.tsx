@@ -11,17 +11,20 @@ async function getStream() {
   return sharedStream;
 }
 
-/** Grandchild records their own voice asking one question. */
+/** Grandchild records their own voice (a question, or the opening message). */
 export function PromptRecorder({
-  manageToken,
-  questionId,
+  uploadUrl,
+  audioUrl,
   hasAudio,
   onChange,
+  label = 'อัดเสียงถาม',
 }: {
-  manageToken: string;
-  questionId: string;
+  /** POST multipart audio / DELETE */
+  uploadUrl: string;
+  audioUrl: string;
   hasAudio: boolean;
   onChange: (hasAudio: boolean) => void;
+  label?: string;
 }) {
   const [phase, setPhase] = useState<'idle' | 'recording' | 'saving'>('idle');
   const [elapsed, setElapsed] = useState(0);
@@ -62,7 +65,7 @@ export function PromptRecorder({
     const fd = new FormData();
     fd.append('mime', blob.type);
     fd.append('audio', blob, `prompt.${extensionForMime(blob.type)}`);
-    const res = await fetch(`/api/m/${manageToken}/questions/${questionId}/audio`, { method: 'POST', body: fd });
+    const res = await fetch(uploadUrl, { method: 'POST', body: fd });
     setPhase('idle');
     if (!res.ok) return setError('บันทึกเสียงไม่สำเร็จ ลองอัดใหม่นะครับ');
     setVersion((v) => v + 1);
@@ -70,7 +73,7 @@ export function PromptRecorder({
   }
 
   async function remove() {
-    await fetch(`/api/m/${manageToken}/questions/${questionId}/audio`, { method: 'DELETE' });
+    await fetch(uploadUrl, { method: 'DELETE' });
     onChange(false);
   }
 
@@ -87,12 +90,12 @@ export function PromptRecorder({
           disabled={phase === 'saving'}
           className="rounded-full border-2 border-amber px-4 py-2 font-medium disabled:opacity-50"
         >
-          {phase === 'saving' ? 'กำลังบันทึก…' : hasAudio ? '🎙 อัดใหม่' : '🎙 อัดเสียงถาม'}
+          {phase === 'saving' ? 'กำลังบันทึก…' : hasAudio ? '🎙 อัดใหม่' : `🎙 ${label}`}
         </button>
       )}
       {hasAudio && phase === 'idle' && (
         <>
-          <audio controls preload="none" className="h-10 max-w-[14rem]" src={`/api/audio/prompt/${questionId}?t=${manageToken}&v=${version}`} />
+          <audio controls preload="none" className="h-10 max-w-[14rem]" src={`${audioUrl}${audioUrl.includes('?') ? '&' : '?'}v=${version}`} />
           <button type="button" onClick={remove} className="text-ink-soft underline underline-offset-4">
             ลบเสียง
           </button>

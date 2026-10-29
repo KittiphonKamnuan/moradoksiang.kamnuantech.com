@@ -7,6 +7,8 @@ export const INTERVIEW_CONFIG = {
   maxAnswerMs: 15 * 60 * 1000,
   /** short breath before each question is played */
   pauseBeforeQuestionMs: 700,
+  /** breath between story lines (intro -> chapter opener -> question) */
+  pauseBetweenLinesMs: 350,
   /** how long the mic check shows "ได้ยินแล้ว" before moving on */
   micCheckSuccessMs: 1300,
 };

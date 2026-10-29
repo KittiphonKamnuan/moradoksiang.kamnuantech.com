@@ -8,6 +8,7 @@ import { CopyButton } from '@/components/CopyButton';
 import { PromptRecorder } from '@/components/PromptRecorder';
 import type { ManageView } from '@/lib/manage';
 import { CHAPTERS, QUESTION_BANK, renderQuestion, type ChapterId } from '@/lib/questions';
+import { lineText } from '@/lib/script';
 
 type Draft = { key: string; id?: string; chapter: ChapterId; text: string; isClosing: boolean; hasPromptAudio: boolean };
 
@@ -146,6 +147,22 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
         )}
       </section>
 
+      <section className="paper-card space-y-3 p-5">
+        <h2 className="font-display text-2xl">ข้อความเปิดจาก{info.creatorName || 'หลาน'}</h2>
+        <p className="text-base text-ink-soft">
+          พอ{call}กด “เริ่มคุยกัน” จะได้ยินข้อความนี้ก่อนคำถามแรก อัดเสียงตัวเองทักทาย{call}ได้เลย เช่น “สวัสดีครับ{call} {info.creatorName || 'หลาน'}เองนะ
+          วันนี้อยากฟังเรื่องของ{call}…” ถ้าไม่อัด ระบบจะอ่านบทเปิดนี้ให้แทน:
+        </p>
+        <blockquote className="border-l-4 border-line pl-4 text-base">{lineText('intro', { name: info.name, callName: call, creatorName: info.creatorName })}</blockquote>
+        <PromptRecorder
+          uploadUrl={`/api/m/${token}/intro`}
+          audioUrl={`/api/audio/intro/${initial.storytellerId}?t=${token}`}
+          hasAudio={info.hasIntroAudio}
+          onChange={(h) => setInfo((i) => ({ ...i, hasIntroAudio: h }))}
+          label="อัดข้อความเปิด"
+        />
+      </section>
+
       <section className="space-y-4">
         <div className="flex items-end justify-between gap-4">
           <div>
@@ -187,7 +204,12 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
               <textarea className={input} rows={2} value={d.text} maxLength={300} onChange={(e) => update(d.key, { text: e.target.value })} />
               {d.text.includes('{เรียก}') && <p className="text-base text-ink-soft">“{renderQuestion(d.text, call)}”</p>}
               {d.id && !dirty ? (
-                <PromptRecorder manageToken={token} questionId={d.id} hasAudio={d.hasPromptAudio} onChange={(h) => setPromptFlag(d.key, h)} />
+                <PromptRecorder
+                  uploadUrl={`/api/m/${token}/questions/${d.id}/audio`}
+                  audioUrl={`/api/audio/prompt/${d.id}?t=${token}`}
+                  hasAudio={d.hasPromptAudio}
+                  onChange={(h) => setPromptFlag(d.key, h)}
+                />
               ) : (
                 <p className="text-base text-ink-soft">บันทึกคำถามก่อน แล้วจึงอัดเสียงถามได้</p>
               )}
@@ -198,7 +220,12 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
               <p className="text-base text-ink-soft">ข้อปิดท้าย (ถามเสมอ)</p>
               <textarea className={input} rows={2} value={closing.text} maxLength={300} onChange={(e) => update(closing.key, { text: e.target.value })} />
               {closing.id && !dirty && (
-                <PromptRecorder manageToken={token} questionId={closing.id} hasAudio={closing.hasPromptAudio} onChange={(h) => setPromptFlag(closing.key, h)} />
+                <PromptRecorder
+                  uploadUrl={`/api/m/${token}/questions/${closing.id}/audio`}
+                  audioUrl={`/api/audio/prompt/${closing.id}?t=${token}`}
+                  hasAudio={closing.hasPromptAudio}
+                  onChange={(h) => setPromptFlag(closing.key, h)}
+                />
               )}
             </li>
           )}

@@ -11,6 +11,7 @@ export function requireManage(token: string) {
 export function manageView(token: string, req?: Request) {
   const s = requireManage(token);
   return {
+    storytellerId: s.id,
     storyteller: {
       name: s.name,
       callName: s.callName,
