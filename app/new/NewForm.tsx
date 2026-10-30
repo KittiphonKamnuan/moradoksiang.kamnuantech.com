@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { BigButton } from '@/components/BigButton';
+import { resizeImage } from '@/lib/client/resizeImage';
 import { CHAPTERS, DEFAULT_QUESTION_IDS, QUESTION_BANK, renderQuestion } from '@/lib/questions';
 
 const CALL_NAMES = ['ยาย', 'ตา', 'ย่า', 'ปู่', 'แม่', 'พ่อ'];
@@ -35,7 +36,7 @@ export function NewForm() {
     fd.append('name', name);
     fd.append('callName', callName);
     fd.append('creatorName', creatorName);
-    if (photo) fd.append('photo', photo);
+    if (photo) fd.append('photo', await resizeImage(photo), 'photo.jpg');
     if (custom) {
       fd.append('questions', JSON.stringify(QUESTION_BANK.filter((q) => picked.has(q.id)).map((q) => ({ chapter: q.chapter, text: q.text }))));
     }
@@ -45,7 +46,7 @@ export function NewForm() {
       const { manageToken } = await res.json();
       router.push(`/m/${manageToken}?new=1`);
     } catch (err) {
-      setError(err instanceof Error && err.message.includes('photo') ? 'รูปต้องเป็น JPG, PNG หรือ WEBP ขนาดไม่เกิน 8MB' : 'บันทึกไม่สำเร็จ ลองอีกครั้งนะครับ');
+      setError(err instanceof Error && err.message.includes('photo') ? 'ใช้รูปนี้ไม่ได้ ลองเลือกรูปอื่น (JPG, PNG หรือ WEBP)' : 'บันทึกไม่สำเร็จ ลองอีกครั้งนะครับ');
       setBusy(false);
     }
   }

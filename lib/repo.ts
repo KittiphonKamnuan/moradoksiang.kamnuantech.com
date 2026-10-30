@@ -169,6 +169,54 @@ export function skipAnswer(db: Db, storytellerId: string, questionId: string) {
   });
 }
 
+/**
+ * The upload arrived but could not be decoded. Keeps the raw file (if any) for manual recovery and
+ * marks the question so the grandchild sees it on the manage page. A good answer is never overwritten.
+ * Returns the raw path to delete when it was not stored.
+ */
+export function failAnswer(db: Db, storytellerId: string, questionId: string, rawPath: string | null): string | null {
+  const prev = db.select({ status: answers.status }).from(answers).where(eq(answers.questionId, questionId)).get();
+  if (prev?.status === 'saved') return rawPath;
+  const { previousAudioPath } = upsertAnswer(db, storytellerId, questionId, {
+    audioPath: rawPath,
+    mime: null,
+    durationMs: null,
+    status: 'failed',
+    transcriptStatus: 'disabled',
+  });
+  return previousAudioPath;
+}
+
+/** Clear a question's answer so the interview asks it again. Returns the file to delete. */
+export function resetAnswer(db: Db, storytellerId: string, questionId: string): string | null {
+  const row = db
+    .select({ id: answers.id, p: answers.audioPath })
+    .from(answers)
+    .where(and(eq(answers.questionId, questionId), eq(answers.storytellerId, storytellerId)))
+    .get();
+  if (!row) return null;
+  db.delete(answers).where(eq(answers.id, row.id)).run();
+  return row.p;
+}
+
+export function listQuestionsWithAnswers(db: Db, storytellerId: string) {
+  return db
+    .select({ q: questions, answerStatus: answers.status, durationMs: answers.durationMs })
+    .from(questions)
+    .leftJoin(answers, eq(answers.questionId, questions.id))
+    .where(eq(questions.storytellerId, storytellerId))
+    .orderBy(asc(questions.position))
+    .all()
+    .map(({ q, answerStatus, durationMs }) => ({ ...q, answerStatus: answerStatus ?? null, durationMs: durationMs ?? null }));
+}
+
+/** Returns the previous photo path (to delete) */
+export function setPhoto(db: Db, storytellerId: string, photoPath: string | null): string | null {
+  const prev = db.select({ p: storytellers.photoPath }).from(storytellers).where(eq(storytellers.id, storytellerId)).get();
+  db.update(storytellers).set({ photoPath, updatedAt: Date.now() }).where(eq(storytellers.id, storytellerId)).run();
+  return prev?.p ?? null;
+}
+
 export function completeSession(db: Db, storytellerId: string) {
   db.update(storytellers).set({ status: 'completed', updatedAt: Date.now() }).where(eq(storytellers.id, storytellerId)).run();
 }

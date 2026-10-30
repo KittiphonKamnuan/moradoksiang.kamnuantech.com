@@ -43,7 +43,7 @@ export function clientKey(req: Request) {
 export const MAX_AUDIO_BYTES = 30 * 1024 * 1024; // ~15 min of iOS AAC with headroom
 export const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
-export const PHOTO_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+export const PHOTO_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic' };
 
 export async function readAudioField(fd: FormData, field = 'audio') {
   const file = fd.get(field);
@@ -57,10 +57,18 @@ export async function readAudioField(fd: FormData, field = 'audio') {
 export async function readPhotoField(fd: FormData, field = 'photo') {
   const file = fd.get(field);
   if (!(file instanceof Blob) || file.size === 0) return null;
-  const ext = PHOTO_TYPES[file.type];
-  if (!ext) throw new HttpError(415, 'unsupported photo type');
+  if (!PHOTO_TYPES[file.type]) throw new HttpError(415, 'unsupported photo type');
   if (file.size > MAX_PHOTO_BYTES) throw new HttpError(413, 'photo too large');
-  return { bytes: Buffer.from(await file.arrayBuffer()), ext };
+  return { bytes: Buffer.from(await file.arrayBuffer()) };
+}
+
+/** Normalise + store an uploaded photo; 422 when the bytes are not a decodable image. */
+export async function storePhoto(save: (bytes: Buffer) => Promise<string>, photo: { bytes: Buffer }) {
+  try {
+    return await save(photo.bytes);
+  } catch {
+    throw new HttpError(422, 'could not decode photo');
+  }
 }
 
 export async function readJson<T>(req: Request): Promise<T> {

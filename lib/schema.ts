@@ -41,7 +41,7 @@ export const answers = sqliteTable('answers', {
   audioPath: text('audio_path'),
   mime: text('mime'),
   durationMs: integer('duration_ms'),
-  status: text('status').$type<'saved' | 'skipped'>().notNull().default('saved'),
+  status: text('status').$type<'saved' | 'skipped' | 'failed'>().notNull().default('saved'),
   transcript: text('transcript'),
   transcriptStatus: text('transcript_status')
     .$type<'pending' | 'processing' | 'done' | 'failed' | 'disabled'>()

@@ -4,13 +4,16 @@ import {
   completeSession,
   createStoryteller,
   deleteStoryteller,
+  failAnswer,
   getBook,
   getByBookToken,
   getByManageToken,
   getByRecordToken,
   getSession,
   listQuestions,
+  listQuestionsWithAnswers,
   replaceQuestions,
+  resetAnswer,
   resolveAudio,
   saveAnswer,
   setPromptAudio,
@@ -275,5 +278,52 @@ describe('migrations', () => {
     const s = createStoryteller(migrated, { name: 'ก', callName: 'ข' });
     expect(getByManageToken(migrated, s.manageToken)?.introAudio).toBeNull();
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('failed answers + reset (upload could not be decoded)', () => {
+  it('failAnswer records the question as failed: not in the book, counted as passed for resume', () => {
+    const s = make();
+    const [q0] = listQuestions(db, s.id);
+    failAnswer(db, s.id, q0.id, 'answers/raw.failed.webm');
+    const session = getSession(db, s.recordToken)!;
+    expect(session.questions[0].answerStatus).toBe('failed');
+    expect(session.nextIndex).toBe(1);
+    expect(getBook(db, s.bookToken)!.chapters).toEqual([]);
+  });
+
+  it('resetAnswer clears the answer, returns its file, and the interview asks it again', () => {
+    const s = make();
+    const [q0] = listQuestions(db, s.id);
+    failAnswer(db, s.id, q0.id, 'answers/raw.failed.webm');
+    expect(resetAnswer(db, s.id, q0.id)).toBe('answers/raw.failed.webm');
+    expect(getSession(db, s.recordToken)!.nextIndex).toBe(0);
+  });
+
+  it('resetAnswer ignores questions of another storyteller', () => {
+    const a = make();
+    const b = make();
+    const foreign = listQuestions(db, b.id)[0];
+    saveAnswer(db, { storytellerId: b.id, questionId: foreign.id, audioPath: 'x', mime: 'audio/mp4', durationMs: 1 });
+    expect(resetAnswer(db, a.id, foreign.id)).toBeNull();
+    expect(getSession(db, b.recordToken)!.questions[0].answerStatus).toBe('saved');
+  });
+});
+
+describe('listQuestionsWithAnswers (manage page progress)', () => {
+  it('returns each question with its answer status and duration', () => {
+    const s = make();
+    const [q0, q1, q2] = listQuestions(db, s.id);
+    saveAnswer(db, { storytellerId: s.id, questionId: q0.id, audioPath: 'a', mime: 'audio/mp4', durationMs: 61_000 });
+    skipAnswer(db, s.id, q1.id);
+    failAnswer(db, s.id, q2.id, null);
+    const rows = listQuestionsWithAnswers(db, s.id);
+    expect(rows).toHaveLength(11);
+    expect(rows.slice(0, 4).map((r) => [r.answerStatus, r.durationMs])).toEqual([
+      ['saved', 61_000],
+      ['skipped', null],
+      ['failed', null],
+      [null, null],
+    ]);
   });
 });

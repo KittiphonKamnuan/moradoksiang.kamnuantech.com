@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { audioBlob, form, params, tempDataDir, url, webmClip } from './helpers';
 
@@ -86,7 +87,9 @@ describe('POST /api/storytellers', () => {
   });
 
   it('accepts multipart with a photo and custom questions', async () => {
-    const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+    const pngFile = `${dataDir}/real.png`;
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=640x480:duration=1', '-frames:v', '1', pngFile]);
+    const png = fs.readFileSync(pngFile);
     const res = await api.storytellers.POST(
       new Request(url('/api/storytellers'), {
         method: 'POST',
@@ -106,7 +109,7 @@ describe('POST /api/storytellers', () => {
 
     const photo = await api.photo.GET(new Request(url(`/api/photo?t=${t.bookToken}`)));
     expect(photo.status).toBe(200);
-    expect(photo.headers.get('content-type')).toBe('image/png');
+    expect(photo.headers.get('content-type')).toBe('image/jpeg');
   });
 
   it('415 for a non-image photo', async () => {

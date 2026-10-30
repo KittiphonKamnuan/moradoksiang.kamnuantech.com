@@ -1,5 +1,5 @@
 import { getDb } from '@/lib/db';
-import { HttpError, clientKey, handle, json, linksFor, readForm, readJson, readPhotoField } from '@/lib/http';
+import { HttpError, clientKey, handle, json, linksFor, readForm, readJson, readPhotoField, storePhoto } from '@/lib/http';
 import type { QuestionInput } from '@/lib/questions';
 import { createRateLimiter } from '@/lib/ratelimit';
 import { createStoryteller } from '@/lib/repo';
@@ -49,7 +49,7 @@ export const POST = handle(async (req: Request) => {
     throw err instanceof HttpError ? err : new HttpError(400, 'invalid questions');
   }
 
-  const photoPath = photo ? await storage.saveFile(photo.bytes, 'photos', photo.ext) : null;
+  const photoPath = photo ? await storePhoto((b) => storage.saveImage(b, 'photos'), photo) : null;
   const s = createStoryteller(getDb(), {
     name: body.name.slice(0, 100),
     callName: body.callName.slice(0, 30),
