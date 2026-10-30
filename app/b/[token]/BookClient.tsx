@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Art } from '@/components/Art';
-import { AudioCard } from '@/components/AudioCard';
+import { AudioCard, PLAY_EVENT } from '@/components/AudioCard';
 import { CopyButton } from '@/components/CopyButton';
 import { formatMinutesThai } from '@/lib/format';
 import { CHAPTERS } from '@/lib/questions';
@@ -17,6 +17,7 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
   const [stage, setStage] = useState<'question' | 'answer'>('question');
   const playerRef = useRef<HTMLAudioElement>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
+  const audioEls = useRef(new Map<string, HTMLAudioElement>());
 
   const all: BookEntry[] = useMemo(() => chapters.flatMap((c) => c.entries), [chapters]);
   const count = all.length;
@@ -26,18 +27,41 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
   const matches = (e: BookEntry) =>
     !q || e.questionText.toLowerCase().includes(q) || !!e.transcript?.toLowerCase().includes(q) || !!e.title?.toLowerCase().includes(q);
 
-  // ---- "เล่นทั้งเล่ม": question (grandchild's voice, if recorded) -> answer -> next ----
+  // ---- "เล่นทั้งเล่ม": question (hidden player) -> answer (the card's own player, so its UI moves) -> next ----
   useEffect(() => {
     if (current === null) return;
     const entry = all[current];
-    const player = playerRef.current!;
     cardRefs.current.get(entry.answerId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    window.dispatchEvent(new CustomEvent('moradok:play', { detail: '__book__' }));
-    const questionSrc = entry.hasPromptAudio ? `/api/audio/prompt/${entry.questionId}?t=${token}` : `/api/tts/${entry.questionId}?t=${token}`;
-    player.src = stage === 'question' ? questionSrc : `/api/audio/answer/${entry.answerId}?t=${token}`;
-    // a missing clip fires onError -> skip ahead; only stop if the browser blocks playback
-    void player.play().catch((e: DOMException) => e?.name === 'NotAllowedError' && setCurrent(null));
+    const blocked = (e: DOMException) => e?.name === 'NotAllowedError' && setCurrent(null);
+
+    if (stage === 'question') {
+      const player = playerRef.current!;
+      window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: '__book__' }));
+      player.src = entry.hasPromptAudio ? `/api/audio/prompt/${entry.questionId}?t=${token}` : `/api/tts/${entry.questionId}?t=${token}`;
+      // a missing clip fires onError -> skip ahead; only stop if the browser blocks playback
+      void player.play().catch(blocked);
+      return;
+    }
+
+    const el = audioEls.current.get(entry.answerId);
+    if (!el) return onEnded();
+    window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: entry.answerId }));
+    el.currentTime = 0;
+    el.addEventListener('ended', onEnded, { once: true });
+    void el.play().catch(blocked);
+    return () => el.removeEventListener('ended', onEnded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, stage, all, token]);
+
+  // playing another card by hand stops "play whole book"
+  useEffect(() => {
+    const onPlay = (e: Event) => {
+      const id = (e as CustomEvent).detail;
+      if (current !== null && id !== '__book__' && id !== all[current]?.answerId) setCurrent(null);
+    };
+    window.addEventListener(PLAY_EVENT, onPlay);
+    return () => window.removeEventListener(PLAY_EVENT, onPlay);
+  }, [current, all]);
 
   const onEnded = () => {
     if (current === null) return;
@@ -51,6 +75,7 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
   const playAll = () => {
     if (current !== null) {
       playerRef.current?.pause();
+      audioEls.current.get(all[current]?.answerId)?.pause();
       setCurrent(null);
       return;
     }
@@ -132,6 +157,10 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
                   token={token}
                   query={q}
                   highlight={current !== null && all[current]?.answerId === e.answerId}
+                  registerAudio={(el) => {
+                    if (el) audioEls.current.set(e.answerId, el);
+                    else audioEls.current.delete(e.answerId);
+                  }}
                   ref={(el) => {
                     if (el) cardRefs.current.set(e.answerId, el);
                     else cardRefs.current.delete(e.answerId);

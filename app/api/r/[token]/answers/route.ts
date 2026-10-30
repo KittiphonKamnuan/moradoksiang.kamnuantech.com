@@ -1,7 +1,8 @@
 import { getDb } from '@/lib/db';
 import { HttpError, handle, json, readAudioField, readForm } from '@/lib/http';
+import { extensionForMime } from '@/lib/mime';
 import { createRateLimiter } from '@/lib/ratelimit';
-import { getByRecordToken, getQuestion, saveAnswer, skipAnswer } from '@/lib/repo';
+import { failAnswer, getByRecordToken, getQuestion, saveAnswer, skipAnswer } from '@/lib/repo';
 import { storage } from '@/lib/storage';
 
 export const runtime = 'nodejs';
@@ -25,11 +26,22 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     return json({ ok: true, skipped: true });
   }
 
-  const { bytes, mime } = await readAudioField(fd);
+  let audio;
+  try {
+    audio = await readAudioField(fd);
+  } catch (err) {
+    // too large: nothing worth keeping, but the grandchild should know this answer is missing
+    if (err instanceof HttpError && err.status === 413) failAnswer(db, s.id, questionId, null);
+    throw err;
+  }
+  const { bytes, mime } = audio;
   let saved;
   try {
     saved = await storage.saveAudio(bytes, 'answers', mime);
   } catch {
+    // keep the original recording for manual recovery and flag it on the manage page
+    const raw = await storage.saveFile(bytes, 'answers', `failed.${extensionForMime(mime)}`);
+    await storage.removeFiles([failAnswer(db, s.id, questionId, raw)]);
     throw new HttpError(422, 'could not decode audio');
   }
   const res = saveAnswer(db, {

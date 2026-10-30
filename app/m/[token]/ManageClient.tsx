@@ -2,15 +2,30 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BigButton } from '@/components/BigButton';
 import { CopyButton } from '@/components/CopyButton';
 import { PromptRecorder } from '@/components/PromptRecorder';
+import { resizeImage } from '@/lib/client/resizeImage';
+import { formatDuration } from '@/lib/format';
 import type { ManageView } from '@/lib/manage';
 import { CHAPTERS, QUESTION_BANK, renderQuestion, type ChapterId } from '@/lib/questions';
 import { lineText } from '@/lib/script';
 
-type Draft = { key: string; id?: string; chapter: ChapterId; text: string; isClosing: boolean; hasPromptAudio: boolean };
+type AnswerStatus = ManageView['questions'][number]['answerStatus'];
+type Draft = {
+  key: string;
+  id?: string;
+  chapter: ChapterId;
+  text: string;
+  isClosing: boolean;
+  hasPromptAudio: boolean;
+  answerStatus: AnswerStatus;
+  durationMs: number | null;
+};
+
+/** fields the grandchild edits — answer state and recordings change on their own */
+const editable = ({ key, id, chapter, text, isClosing }: Draft) => ({ key, id, chapter, text, isClosing });
 
 const toDrafts = (qs: ManageView['questions']): Draft[] => qs.map((q) => ({ ...q, key: q.id }));
 const input = 'w-full rounded-xl border-2 border-line bg-white px-3 py-2 text-lg focus:border-amber focus:outline-none';
@@ -27,7 +42,32 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
   const [msg, setMsg] = useState('');
   const [showBank, setShowBank] = useState(false);
 
-  const dirty = useMemo(() => JSON.stringify(drafts.map(({ hasPromptAudio, ...d }) => d)) !== JSON.stringify(saved.map(({ hasPromptAudio, ...d }) => d)), [drafts, saved]);
+  const [progress, setProgress] = useState(initial.progress);
+  const [photoVersion, setPhotoVersion] = useState(0);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const dirty = useMemo(() => JSON.stringify(drafts.map(editable)) !== JSON.stringify(saved.map(editable)), [drafts, saved]);
+
+  // live progress while the storyteller is talking (merges answer state only, never the grandchild's edits)
+  useEffect(() => {
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const res = await fetch(`/api/m/${token}`, { cache: 'no-store' }).catch(() => null);
+      if (!res?.ok) return;
+      const view: ManageView = await res.json();
+      const byId = new Map(view.questions.map((q) => [q.id, q]));
+      const merge = (d: Draft): Draft => {
+        const q = d.id ? byId.get(d.id) : undefined;
+        return q ? { ...d, answerStatus: q.answerStatus, durationMs: q.durationMs } : d;
+      };
+      setProgress(view.progress);
+      setInfo((i) => ({ ...i, status: view.storyteller.status }));
+      setDrafts((ds) => ds.map(merge));
+      setSaved((ss) => ss.map(merge));
+    };
+    const timer = setInterval(refresh, 15000);
+    return () => clearInterval(timer);
+  }, [token]);
   const body = drafts.filter((d) => !d.isClosing);
   const closing = drafts.find((d) => d.isClosing);
   const call = info.callName || '…';
@@ -44,7 +84,11 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
     });
   const remove = (key: string) => setDrafts((ds) => ds.filter((d) => d.key !== key));
   const add = (chapter: ChapterId, text: string) =>
-    setDrafts((ds) => [...ds.filter((d) => !d.isClosing), { key: `new-${Date.now()}-${Math.random()}`, chapter, text, isClosing: false, hasPromptAudio: false }, ...ds.filter((d) => d.isClosing)]);
+    setDrafts((ds) => [
+      ...ds.filter((d) => !d.isClosing),
+      { key: `new-${Date.now()}-${Math.random()}`, chapter, text, isClosing: false, hasPromptAudio: false, answerStatus: null, durationMs: null },
+      ...ds.filter((d) => d.isClosing),
+    ]);
 
   async function saveQuestions() {
     setBusy(true);
@@ -59,6 +103,7 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
     const next = toDrafts(view.questions);
     setSaved(next);
     setDrafts(next);
+    setProgress(view.progress);
     setMsg('บันทึกคำถามแล้ว ✓');
     setTimeout(() => setMsg(''), 2000);
   }
@@ -70,6 +115,33 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
       body: JSON.stringify({ name: info.name, callName: info.callName, creatorName: info.creatorName ?? '' }),
     });
     if (res.ok) setInfoDirty(false);
+  }
+
+  async function askAgain(d: Draft) {
+    if (!d.id) return;
+    const res = await fetch(`/api/m/${token}/questions/${d.id}/answer`, { method: 'DELETE' });
+    if (!res.ok) return;
+    const clear = (x: Draft) => (x.id === d.id ? { ...x, answerStatus: null, durationMs: null } : x);
+    setDrafts((ds) => ds.map(clear));
+    setSaved((ss) => ss.map(clear));
+    setProgress((p) => ({ ...p, failed: Math.max(0, p.failed - (d.answerStatus === 'failed' ? 1 : 0)) }));
+  }
+
+  async function changePhoto(file: File | undefined) {
+    if (!file) return;
+    setPhotoBusy(true);
+    const fd = new FormData();
+    fd.append('photo', await resizeImage(file), 'photo.jpg');
+    const res = await fetch(`/api/m/${token}/photo`, { method: 'POST', body: fd });
+    setPhotoBusy(false);
+    if (!res.ok) return setMsg('ใช้รูปนี้ไม่ได้ ลองเลือกรูปอื่นนะครับ');
+    setInfo((i) => ({ ...i, hasPhoto: true }));
+    setPhotoVersion((v) => v + 1);
+  }
+
+  async function removePhoto() {
+    const res = await fetch(`/api/m/${token}/photo`, { method: 'DELETE' });
+    if (res.ok) setInfo((i) => ({ ...i, hasPhoto: false }));
   }
 
   async function deleteAll() {
@@ -96,6 +168,31 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
           </p>
         )}
       </header>
+
+      <section className="paper-card space-y-3 p-5" aria-live="polite">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-2xl">
+            {call}เล่าแล้ว {progress.answered} จาก {progress.total} ข้อ
+          </h2>
+          <span className="text-base text-ink-soft">{statusText[info.status]}</span>
+        </div>
+        <div className="h-3 overflow-hidden rounded-full bg-paper-d" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.answered}>
+          <div className="h-full rounded-full bg-sage transition-all" style={{ width: `${(progress.answered / Math.max(progress.total, 1)) * 100}%` }} />
+        </div>
+        {(progress.skipped > 0 || progress.failed > 0) && (
+          <p className="text-base text-ink-soft">
+            {progress.skipped > 0 && `ข้าม ${progress.skipped} ข้อ`}
+            {progress.skipped > 0 && progress.failed > 0 && ' · '}
+            {progress.failed > 0 && `บันทึกเสียงไม่สำเร็จ ${progress.failed} ข้อ`}
+          </p>
+        )}
+        {progress.failed > 0 && (
+          <p className="rounded-xl bg-rose/15 px-4 py-3 text-base">
+            ⚠ มี {progress.failed} ข้อที่เสียงส่งมาแต่เปิดไม่ได้ (เก็บไฟล์ต้นฉบับไว้ในเครื่องแล้ว) กด “ให้{call}เล่าข้อนี้ใหม่” ที่ข้อนั้น แล้วเปิดลิงก์ให้{call}อีกครั้ง
+            ระบบจะถามเฉพาะข้อที่ยังไม่ได้เล่า
+          </p>
+        )}
+      </section>
 
       <section className="grid gap-5 sm:grid-cols-2">
         <div className="paper-card space-y-3 p-5">
@@ -145,6 +242,23 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
             บันทึกข้อมูล
           </button>
         )}
+        <div className="flex flex-wrap items-center gap-4 border-t border-line pt-4">
+          {info.hasPhoto ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={`/api/photo?t=${token}&v=${photoVersion}`} alt="รูปผู้เล่า" className="h-20 w-20 rounded-full border-2 border-white object-cover shadow" />
+          ) : (
+            <div className="grid h-20 w-20 place-items-center rounded-full bg-paper-d text-sm text-ink-soft">ไม่มีรูป</div>
+          )}
+          <label className="cursor-pointer rounded-xl border-2 border-line bg-white px-4 py-2 text-base font-medium">
+            {photoBusy ? 'กำลังอัปโหลด…' : info.hasPhoto ? 'เปลี่ยนรูป' : 'ใส่รูป'}
+            <input type="file" accept="image/*" className="sr-only" disabled={photoBusy} onChange={(e) => void changePhoto(e.target.files?.[0])} />
+          </label>
+          {info.hasPhoto && (
+            <button type="button" onClick={removePhoto} className="text-base text-ink-soft underline underline-offset-4">
+              ลบรูป
+            </button>
+          )}
+        </div>
       </section>
 
       <section className="paper-card space-y-3 p-5">
@@ -203,6 +317,7 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
               </div>
               <textarea className={input} rows={2} value={d.text} maxLength={300} onChange={(e) => update(d.key, { text: e.target.value })} />
               {d.text.includes('{เรียก}') && <p className="text-base text-ink-soft">“{renderQuestion(d.text, call)}”</p>}
+              <AnswerBadge draft={d} call={call} onAskAgain={() => void askAgain(d)} />
               {d.id && !dirty ? (
                 <PromptRecorder
                   uploadUrl={`/api/m/${token}/questions/${d.id}/audio`}
@@ -219,6 +334,7 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
             <li className="paper-card space-y-3 border-dashed p-4">
               <p className="text-base text-ink-soft">ข้อปิดท้าย (ถามเสมอ)</p>
               <textarea className={input} rows={2} value={closing.text} maxLength={300} onChange={(e) => update(closing.key, { text: e.target.value })} />
+              <AnswerBadge draft={closing} call={call} onAskAgain={() => void askAgain(closing)} />
               {closing.id && !dirty && (
                 <PromptRecorder
                   uploadUrl={`/api/m/${token}/questions/${closing.id}/audio`}
@@ -285,4 +401,20 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
       </section>
     </main>
   );
+}
+
+function AnswerBadge({ draft, call, onAskAgain }: { draft: Draft; call: string; onAskAgain: () => void }) {
+  if (draft.answerStatus === 'saved')
+    return <p className="text-base font-medium text-sage-d">✓ {call}เล่าแล้ว ({formatDuration(draft.durationMs)})</p>;
+  if (draft.answerStatus === 'skipped') return <p className="text-base text-ink-soft">{call}ข้ามข้อนี้</p>;
+  if (draft.answerStatus === 'failed')
+    return (
+      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-rose/15 px-3 py-2 text-base">
+        <span>⚠ บันทึกเสียงข้อนี้ไม่สำเร็จ</span>
+        <button type="button" onClick={onAskAgain} className="rounded-lg border-2 border-rose bg-white px-3 py-1 font-medium">
+          ให้{call}เล่าข้อนี้ใหม่
+        </button>
+      </div>
+    );
+  return null;
 }
