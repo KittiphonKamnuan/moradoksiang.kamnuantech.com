@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Art } from '@/components/Art';
-import { AudioCard, PLAY_EVENT } from '@/components/AudioCard';
+import { AudioCard, PLAY_EVENT, type ExternalPlayback } from '@/components/AudioCard';
 import { CopyButton } from '@/components/CopyButton';
+import { silentWavUrl } from '@/lib/client/audioEngine';
 import { formatMinutesThai } from '@/lib/format';
 import { CHAPTERS } from '@/lib/questions';
 import type { BookEntry, getBook } from '@/lib/repo';
@@ -17,7 +18,6 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
   const [stage, setStage] = useState<'question' | 'answer'>('question');
   const playerRef = useRef<HTMLAudioElement>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
-  const audioEls = useRef(new Map<string, HTMLAudioElement>());
 
   const all: BookEntry[] = useMemo(() => chapters.flatMap((c) => c.entries), [chapters]);
   const count = all.length;
@@ -27,41 +27,52 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
   const matches = (e: BookEntry) =>
     !q || e.questionText.toLowerCase().includes(q) || !!e.transcript?.toLowerCase().includes(q) || !!e.title?.toLowerCase().includes(q);
 
-  // ---- "เล่นทั้งเล่ม": question (hidden player) -> answer (the card's own player, so its UI moves) -> next ----
+  // ---- "เล่นทั้งเล่ม": one player for the whole book (iOS only lets an element play without a tap once it
+  // has been unlocked by one). Question (grandchild's voice / TTS) -> answer -> next. The highlighted card
+  // mirrors this player's state, so its time, seek bar and pause button move with it.
+  const [ext, setExt] = useState({ time: 0, duration: 0, playing: false });
+
   useEffect(() => {
     if (current === null) return;
     const entry = all[current];
+    const player = playerRef.current!;
     cardRefs.current.get(entry.answerId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const blocked = (e: DOMException) => e?.name === 'NotAllowedError' && setCurrent(null);
-
-    if (stage === 'question') {
-      const player = playerRef.current!;
-      window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: '__book__' }));
-      player.src = entry.hasPromptAudio ? `/api/audio/prompt/${entry.questionId}?t=${token}` : `/api/tts/${entry.questionId}?t=${token}`;
-      // a missing clip fires onError -> skip ahead; only stop if the browser blocks playback
-      void player.play().catch(blocked);
-      return;
-    }
-
-    const el = audioEls.current.get(entry.answerId);
-    if (!el) return onEnded();
-    window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: entry.answerId }));
-    el.currentTime = 0;
-    el.addEventListener('ended', onEnded, { once: true });
-    void el.play().catch(blocked);
-    return () => el.removeEventListener('ended', onEnded);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: '__book__' }));
+    setExt({ time: 0, duration: (entry.durationMs ?? 0) / 1000, playing: false });
+    player.src =
+      stage === 'answer'
+        ? `/api/audio/answer/${entry.answerId}?t=${token}`
+        : entry.hasPromptAudio
+          ? `/api/audio/prompt/${entry.questionId}?t=${token}`
+          : `/api/tts/${entry.questionId}?t=${token}`;
+    // a missing clip fires onError -> skip ahead; only stop if the browser blocks playback
+    void player.play().catch((e: DOMException) => e?.name === 'NotAllowedError' && setCurrent(null));
   }, [current, stage, all, token]);
 
-  // playing another card by hand stops "play whole book"
+  // follow the playhead every frame while the answer plays (Safari fires timeupdate irregularly)
+  useEffect(() => {
+    if (current === null || stage !== 'answer' || !ext.playing) return;
+    let raf = 0;
+    const tick = () => {
+      const p = playerRef.current;
+      if (p) setExt((x) => ({ ...x, time: p.currentTime, duration: Number.isFinite(p.duration) && p.duration > 0 ? p.duration : x.duration }));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [current, stage, ext.playing]);
+
+  // playing a card by hand stops "play whole book"
   useEffect(() => {
     const onPlay = (e: Event) => {
-      const id = (e as CustomEvent).detail;
-      if (current !== null && id !== '__book__' && id !== all[current]?.answerId) setCurrent(null);
+      if (current !== null && (e as CustomEvent).detail !== '__book__') {
+        playerRef.current?.pause();
+        setCurrent(null);
+      }
     };
     window.addEventListener(PLAY_EVENT, onPlay);
     return () => window.removeEventListener(PLAY_EVENT, onPlay);
-  }, [current, all]);
+  }, [current]);
 
   const onEnded = () => {
     if (current === null) return;
@@ -73,15 +84,34 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
   };
 
   const playAll = () => {
+    const player = playerRef.current!;
     if (current !== null) {
-      playerRef.current?.pause();
-      audioEls.current.get(all[current]?.answerId)?.pause();
+      player.pause();
       setCurrent(null);
       return;
     }
+    // unlock the player inside the tap itself; the effect then swaps in the real clips
+    player.src = silentWavUrl();
+    void player.play().catch(() => {});
     setStage('question');
     setCurrent(0);
   };
+
+  const external = (e: BookEntry): ExternalPlayback | undefined =>
+    current !== null && stage === 'answer' && all[current]?.answerId === e.answerId
+      ? {
+          ...ext,
+          toggle: () => {
+            const p = playerRef.current!;
+            if (p.paused) void p.play();
+            else p.pause();
+          },
+          seek: (t) => {
+            playerRef.current!.currentTime = t;
+            setExt((x) => ({ ...x, time: t }));
+          },
+        }
+      : undefined;
 
   return (
     <main className="pb-16">
@@ -118,7 +148,19 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
         </div>
       </header>
 
-      <audio ref={playerRef} onEnded={onEnded} onError={onEnded} preload="none" className="hidden" />
+      <audio
+        ref={playerRef}
+        onEnded={onEnded}
+        onError={() => current !== null && onEnded()}
+        onPlay={() => setExt((x) => ({ ...x, playing: true }))}
+        onPause={() => setExt((x) => ({ ...x, playing: false }))}
+        onLoadedMetadata={(e) => {
+          const duration = e.currentTarget.duration; // read now: currentTarget is gone by the time the updater runs
+          if (Number.isFinite(duration)) setExt((x) => ({ ...x, duration }));
+        }}
+        preload="none"
+        className="hidden"
+      />
 
       <div className="mx-auto max-w-2xl space-y-12 px-5">
         {count === 0 && (
@@ -157,10 +199,7 @@ export function BookClient({ book, token, link, qr }: { book: Book; token: strin
                   token={token}
                   query={q}
                   highlight={current !== null && all[current]?.answerId === e.answerId}
-                  registerAudio={(el) => {
-                    if (el) audioEls.current.set(e.answerId, el);
-                    else audioEls.current.delete(e.answerId);
-                  }}
+                  external={external(e)}
                   ref={(el) => {
                     if (el) cardRefs.current.set(e.answerId, el);
                     else cardRefs.current.delete(e.answerId);

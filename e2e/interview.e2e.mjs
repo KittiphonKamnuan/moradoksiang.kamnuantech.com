@@ -162,6 +162,10 @@ if (canAac) {
   await book.waitForTimeout(2500);
   await book.getByRole('button', { name: /เล่นทั้งเล่ม/ }).click();
   assert.ok(await sawCardPlaying(10000), 'play-all moves the card time + shows pause');
+  // the card's own pause button controls the book player while play-all is on it
+  await book.getByRole('button', { name: 'หยุด', exact: true }).first().click().catch(() => {});
+  const bookPlayerPaused = await book.evaluate(() => document.querySelector('audio.hidden').paused);
+  assert.ok(bookPlayerPaused, 'card pause button pauses the play-all player');
   await book.getByRole('button', { name: /หยุดเล่นทั้งเล่ม/ }).click();
   step('"เล่นทั้งเล่ม" drives the card player (time + pause button visible)');
 }

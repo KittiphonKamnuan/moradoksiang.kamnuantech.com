@@ -8,21 +8,22 @@ const SPEEDS = [1, 1.25, 0.75];
 export const PLAY_EVENT = 'moradok:play';
 
 /** One story in the life book. Only one card plays at a time. */
-export const AudioCard = forwardRef<
-  HTMLElement,
-  { entry: BookEntry; token: string; highlight?: boolean; query?: string; registerAudio?: (el: HTMLAudioElement | null) => void }
->(function AudioCard({ entry, token, highlight, query, registerAudio }, ref) {
+/** State of the book's "play all" player while it is playing this card's answer. */
+export interface ExternalPlayback {
+  time: number;
+  duration: number;
+  playing: boolean;
+  toggle: () => void;
+  seek: (t: number) => void;
+}
+
+export const AudioCard = forwardRef<HTMLElement, { entry: BookEntry; token: string; highlight?: boolean; query?: string; external?: ExternalPlayback }>(
+  function AudioCard({ entry, token, highlight, query, external }, ref) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState((entry.durationMs ?? 0) / 1000);
   const [speed, setSpeed] = useState(0);
-
-  useEffect(() => {
-    registerAudio?.(audioRef.current);
-    return () => registerAudio?.(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // follow the playhead every frame while playing — Safari fires timeupdate irregularly
   useEffect(() => {
@@ -48,7 +49,11 @@ export const AudioCard = forwardRef<
     return () => window.removeEventListener(PLAY_EVENT, onOther);
   }, [entry.answerId]);
 
+  // while "play all" is on this card, show and control that player instead of our own
+  const shown = external ?? { time, duration, playing };
+
   const toggle = () => {
+    if (external) return external.toggle();
     const a = audioRef.current!;
     if (a.paused) {
       window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: entry.answerId }));
@@ -76,10 +81,10 @@ export const AudioCard = forwardRef<
         <button
           type="button"
           onClick={toggle}
-          aria-label={playing ? 'หยุด' : 'เล่น'}
+          aria-label={shown.playing ? 'หยุด' : 'เล่น'}
           className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-amber text-ink shadow-[0_4px_0_var(--color-amber-d)]"
         >
-          {playing ? (
+          {shown.playing ? (
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>
           ) : (
             <svg viewBox="0 0 24 24" className="ml-1 h-6 w-6" fill="currentColor"><path d="M7 4.5v15l13-7.5z" /></svg>
@@ -89,20 +94,21 @@ export const AudioCard = forwardRef<
           <input
             type="range"
             min={0}
-            max={duration || 1}
+            max={shown.duration || 1}
             step={0.1}
-            value={time}
+            value={shown.time}
             aria-label="เลื่อนตำแหน่ง"
             onChange={(e) => {
               const t = Number(e.target.value);
+              if (external) return external.seek(t);
               if (audioRef.current) audioRef.current.currentTime = t;
               setTime(t);
             }}
             className="w-full accent-amber-d"
           />
           <div className="flex justify-between text-sm text-ink-soft">
-            <span>{formatDuration(time * 1000)}</span>
-            <span>{formatDuration(duration * 1000)}</span>
+            <span>{formatDuration(shown.time * 1000)}</span>
+            <span>{formatDuration(shown.duration * 1000)}</span>
           </div>
         </div>
         <button type="button" onClick={cycleSpeed} className="w-14 shrink-0 rounded-lg border border-line bg-white py-1 text-sm" aria-label="ความเร็ว">
@@ -138,4 +144,5 @@ export const AudioCard = forwardRef<
       )}
     </article>
   );
-});
+},
+);
