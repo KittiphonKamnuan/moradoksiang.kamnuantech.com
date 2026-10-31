@@ -2,7 +2,7 @@ import { pickRecorderMime } from '../mime';
 import { computeRms } from '../silence';
 
 /** 0.1s of silence as WAV — played inside the first tap to unlock the <audio> element on iOS. */
-function silentWavUrl(): string {
+export function silentWavUrl(): string {
   const sampleRate = 8000;
   const samples = 800;
   const buf = new ArrayBuffer(44 + samples * 2);
