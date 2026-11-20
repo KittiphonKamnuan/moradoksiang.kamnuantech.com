@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { BigButton } from '@/components/BigButton';
 import { resizeImage } from '@/lib/client/resizeImage';
@@ -10,7 +9,6 @@ const CALL_NAMES = ['ยาย', 'ตา', 'ย่า', 'ปู่', 'แม่'
 const input = 'w-full rounded-xl border-2 border-line bg-white px-4 py-3 text-lg focus:border-amber focus:outline-none';
 
 export function NewForm() {
-  const router = useRouter();
   const [name, setName] = useState('');
   const [callName, setCallName] = useState('ยาย');
   const [creatorName, setCreatorName] = useState('');
@@ -44,7 +42,8 @@ export function NewForm() {
       const res = await fetch('/api/storytellers', { method: 'POST', body: fd });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? res.statusText);
       const { manageToken } = await res.json();
-      router.push(`/m/${manageToken}?new=1`);
+      // token pages are server-checked shells: use a full navigation
+      window.location.assign(`/m/${manageToken}?new=1`);
     } catch (err) {
       setError(err instanceof Error && err.message.includes('photo') ? 'ใช้รูปนี้ไม่ได้ ลองเลือกรูปอื่น (JPG, PNG หรือ WEBP)' : 'บันทึกไม่สำเร็จ ลองอีกครั้งนะครับ');
       setBusy(false);

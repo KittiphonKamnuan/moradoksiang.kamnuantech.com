@@ -1,20 +1,12 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { getDb } from '@/lib/db';
-import { manageView } from '@/lib/manage';
-import { qrDataUrl } from '@/lib/qr';
-import { getByManageToken } from '@/lib/repo';
-import { ManageClient } from './ManageClient';
+import { ManageLoader } from './ManageLoader';
 
-export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'จัดการสมุดชีวิต', robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ new?: string }> };
+/** One static shell for every manage link; the server checks the token (server/src/pages.rs). */
+export const dynamicParams = false;
+export const generateStaticParams = () => [{ token: '_' }];
 
-export default async function ManagePage({ params, searchParams }: Props) {
-  const { token } = await params;
-  if (!getByManageToken(getDb(), token)) notFound();
-  const view = manageView(token);
-  const qr = { record: await qrDataUrl(view.links.record), book: await qrDataUrl(view.links.book) };
-  return <ManageClient initial={view} qr={qr} isNew={(await searchParams).new === '1'} />;
+export default function ManagePage() {
+  return <ManageLoader />;
 }

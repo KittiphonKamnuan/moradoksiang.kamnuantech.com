@@ -6,18 +6,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start -p ${PORT:-3000}",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "seed:demo": "tsx scripts/seed-demo.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "node e2e/interview.e2e.mjs"
+    "e2e": "node e2e/interview.e2e.mjs",
+    "test:server": "cd server && cargo test"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
-    "drizzle-orm": "^0.45.4",
-    "nanoid": "^6.0.2",
     "next": "^15.5.28",
     "qrcode": "^1.5.4",
     "react": "^19.3.1",
@@ -25,14 +21,12 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "postcss": "^8.5.32",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   }

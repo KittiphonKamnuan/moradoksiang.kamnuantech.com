@@ -1,11 +1,13 @@
-name: CI / Deploy
+name: CI
 
 on:
   push:
     branches: [main, develop]
   pull_request:
-  workflow_dispatch: # manual redeploy from the Actions tab (main only)
+  workflow_dispatch:
 
+# Production now runs in Docker on the home server (web = Rust server + static export, worker = Python);
+# it is deployed by hand there, so CI only tests. The old pm2 deploy job (scripts/deploy.sh) is gone.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -25,20 +27,16 @@ jobs:
       - run: python -m unittest discover -s worker
       - run: npm run build
 
-  deploy:
-    # only after tests pass, only for main, never for pull requests
-    needs: test
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: [self-hosted, moradoksiang]
-    concurrency:
-      group: deploy-production
-      cancel-in-progress: false
-    environment:
-      name: production
-      url: https://moradoksiang.kamnuantech.com
+  server:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy
-        run: bash scripts/deploy.sh "$GITHUB_WORKSPACE"
-        env:
-          MORADOK_APP_DIR: ${{ vars.MORADOK_APP_DIR }}
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            server/target
+          key: cargo-${{ hashFiles('server/Cargo.lock') }}
+      - run: cargo test
+        working-directory: server

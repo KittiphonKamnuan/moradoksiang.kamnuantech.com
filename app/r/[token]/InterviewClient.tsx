@@ -42,6 +42,10 @@ async function sendItem(item: UploadItem) {
 export function InterviewClient({ token }: { token: string }) {
   const [state, dispatch] = useReducer(interviewReducer, initialInterview);
   const [info, setInfo] = useState<StorytellerInfo | null>(null);
+  // the static shell's title is generic; name it after the grandchild once the session is loaded
+  useEffect(() => {
+    if (info) document.title = `เล่าให้${info.creatorName ?? 'หลาน'}ฟัง · มรดกเสียง`;
+  }, [info]);
   const [level, setLevel] = useState(0);
   const [pending, setPending] = useState(0);
   const [micOpen, setMicOpen] = useState(false);

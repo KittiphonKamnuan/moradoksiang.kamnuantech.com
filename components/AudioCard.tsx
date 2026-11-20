@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { formatDuration } from '@/lib/format';
-import type { BookEntry } from '@/lib/repo';
+import type { BookEntry } from '@/lib/types';
 
 const SPEEDS = [1, 1.25, 0.75];
 export const PLAY_EVENT = 'moradok:play';

@@ -39,9 +39,10 @@
 
 | ส่วน | ใช้ |
 |---|---|
-| Framework | Next.js 15 (App Router) + TypeScript, `next start` บนเครื่องที่บ้าน |
+| Framework | Next.js 15 (App Router) + TypeScript, export เป็นไฟล์ static (`output: 'export'`) |
+| API server | Rust (axum) ใน `server/`: API ทั้งหมด + เสิร์ฟไฟล์ static (แทน `next start`) |
 | UI | Tailwind CSS 4, ฟอนต์ Sarabun + Mitr |
-| DB | SQLite (better-sqlite3, WAL) + Drizzle ORM |
+| DB | SQLite (rusqlite, WAL) schema เดิม: `server/src/db.rs` |
 | ไฟล์เสียง | ดิสก์ `data/files/`, เสิร์ฟผ่าน API ที่ตรวจ token + รองรับ HTTP Range |
 | อัดเสียง | MediaRecorder (webm/opus บน Chrome, mp4/aac บน iOS) → ffmpeg แปลงเป็น AAC `.m4a` |
 | ตรวจความเงียบ | Web Audio API (AnalyserNode → RMS) + state machine ที่เทสต์ได้ |

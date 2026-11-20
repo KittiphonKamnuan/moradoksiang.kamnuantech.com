@@ -1,7 +1,8 @@
 import type { NextConfig } from 'next';
 
+/** Static export: the Rust server (server/) serves ./out and the /api routes. */
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['better-sqlite3'],
+  output: 'export',
   poweredByHeader: false,
 };
 

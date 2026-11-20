@@ -6,9 +6,7 @@ import { AudioCard, PLAY_EVENT } from '@/components/AudioCard';
 import { CopyButton } from '@/components/CopyButton';
 import { formatMinutesThai } from '@/lib/format';
 import { CHAPTERS } from '@/lib/questions';
-import type { BookEntry, getBook } from '@/lib/repo';
-
-type Book = NonNullable<ReturnType<typeof getBook>>;
+import type { Book, BookEntry } from '@/lib/types';
 
 export function BookClient({ book, token, link, qr }: { book: Book; token: string; link: string; qr: string }) {
   const { storyteller, chapters } = book;

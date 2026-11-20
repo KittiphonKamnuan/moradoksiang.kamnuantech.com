@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { BigButton } from '@/components/BigButton';
@@ -8,7 +7,7 @@ import { CopyButton } from '@/components/CopyButton';
 import { PromptRecorder } from '@/components/PromptRecorder';
 import { resizeImage } from '@/lib/client/resizeImage';
 import { formatDuration } from '@/lib/format';
-import type { ManageView } from '@/lib/manage';
+import type { ManageView } from '@/lib/types';
 import { CHAPTERS, QUESTION_BANK, renderQuestion, type ChapterId } from '@/lib/questions';
 import { lineText } from '@/lib/script';
 
@@ -202,9 +201,9 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
           <img src={qr.record} alt="QR ลิงก์ให้ผู้เล่า" className="mx-auto w-48 rounded-lg" />
           <div className="flex flex-wrap gap-2">
             <CopyButton text={initial.links.record} />
-            <Link href={`/r/${initial.tokens.record}`} className="rounded-xl border-2 border-line bg-white px-4 py-2 text-base font-medium" target="_blank">
+            <a href={`/r/${initial.tokens.record}`} className="rounded-xl border-2 border-line bg-white px-4 py-2 text-base font-medium" target="_blank">
               เปิดดู
-            </Link>
+            </a>
           </div>
         </div>
         <div className="paper-card space-y-3 p-5">
@@ -214,9 +213,9 @@ export function ManageClient({ initial, qr, isNew }: { initial: ManageView; qr: 
           <img src={qr.book} alt="QR ลิงก์สมุดชีวิต" className="mx-auto w-48 rounded-lg" />
           <div className="flex flex-wrap gap-2">
             <CopyButton text={initial.links.book} />
-            <Link href={`/b/${initial.tokens.book}`} className="rounded-xl border-2 border-line bg-white px-4 py-2 text-base font-medium" target="_blank">
+            <a href={`/b/${initial.tokens.book}`} className="rounded-xl border-2 border-line bg-white px-4 py-2 text-base font-medium" target="_blank">
               เปิดดู
-            </Link>
+            </a>
           </div>
         </div>
       </section>

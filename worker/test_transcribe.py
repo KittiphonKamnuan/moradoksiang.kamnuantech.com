@@ -107,3 +107,61 @@ class RunOnceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeClock:
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+    def sleep(self, s):
+        self.t += s
+
+
+class DrainTest(unittest.TestCase):
+    def test_processes_queue_then_exits_after_idle(self):
+        with tempfile.TemporaryDirectory() as d:
+            files = Path(d)
+            (files / "answers").mkdir()
+            for i in ("a", "b"):
+                (files / "answers" / f"{i}.m4a").write_bytes(b"x")
+            conn = make_db()
+            add(conn, "a", 1)
+            add(conn, "b", 2)
+            clock = FakeClock()
+            n = t.drain(conn, files, lambda p: "ข้อความ", idle_exit=120, poll=5, clock=clock, sleep=clock.sleep)
+            self.assertEqual(n, 2)
+            self.assertEqual(row(conn, "b"), ("done", "ข้อความ"))
+            self.assertGreaterEqual(clock.t, 120)
+            self.assertLess(clock.t, 130)
+
+
+class SuperviseTest(unittest.TestCase):
+    def test_starts_batch_only_when_pending_and_recovers_after(self):
+        conn = make_db()
+        add(conn, "a", 1, ts="done")
+        calls = []
+        slept = []
+
+        def batch():
+            calls.append(1)
+            conn.execute("UPDATE answers SET transcript_status='processing' WHERE id='p'")
+            return 0
+
+        t.supervise(conn, batch, poll=5, sleep=slept.append, rounds=2)
+        self.assertEqual(calls, [], "no model load while nothing is pending")
+        self.assertEqual(slept, [5, 5])
+
+        add(conn, "p", 2)
+        t.supervise(conn, batch, poll=5, sleep=slept.append, rounds=1)
+        self.assertEqual(calls, [1])
+        self.assertEqual(row(conn, "p")[0], "pending", "rows left processing by the batch are re-queued")
+
+    def test_backs_off_after_a_crashed_batch(self):
+        conn = make_db()
+        add(conn, "p", 1)
+        slept = []
+        t.supervise(conn, lambda: 1, poll=5, sleep=slept.append, rounds=1)
+        self.assertEqual(slept, [60])

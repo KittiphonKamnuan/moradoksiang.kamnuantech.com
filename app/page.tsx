@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { Art } from '@/components/Art';
-
-export const dynamic = 'force-dynamic';
+import { DemoBookLink } from '@/components/DemoBookLink';
 
 const steps = [
   { title: 'หลานเตรียมคำถาม', body: 'เลือกจากชุดคำถามที่คัดมาแล้ว หรือเขียนเอง แล้วอัดเสียงตัวเองถาม ยายจะได้ยินเสียงหลาน ไม่ใช่เสียงหุ่นยนต์' },
@@ -16,7 +15,6 @@ const principles = [
 ];
 
 export default function Home() {
-  const demo = process.env.DEMO_BOOK_TOKEN;
   return (
     <main>
       <section className="relative isolate overflow-hidden">
@@ -43,11 +41,7 @@ export default function Home() {
             >
               เริ่มเก็บเรื่องเล่า
             </Link>
-            {demo && (
-              <Link href={`/b/${demo}`} className="grid min-h-[64px] place-items-center rounded-2xl border-2 border-line bg-white px-8 font-display text-xl">
-                ฟังสมุดชีวิตตัวอย่าง
-              </Link>
-            )}
+            <DemoBookLink />
           </div>
         </div>
       </section>
